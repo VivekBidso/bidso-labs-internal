@@ -1,3 +1,4 @@
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -18,6 +19,14 @@ class Settings(BaseSettings):
 
     resend_api_key: str = ""
     resend_from_address: str = ""
+
+    @field_validator("*", mode="before")
+    @classmethod
+    def strip_whitespace(cls, value):
+        # Dashboard-pasted env vars (Render, etc.) routinely carry a stray
+        # trailing newline from the copy source — strip it here once rather
+        # than trust every paste to be clean.
+        return value.strip() if isinstance(value, str) else value
 
 
 settings = Settings()
