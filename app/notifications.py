@@ -41,24 +41,80 @@ def _send(*, to: str, subject: str, html: str) -> None:
         logger.exception("Resend email to %s failed", to)
 
 
+# Brand colors, matching bidso-labs-public/src/styles/global.css exactly —
+# email clients strip <style> blocks and CSS variables unreliably, so
+# everything below is inline and hardcoded rather than referencing that file.
+_AMBER = "#f46a1f"
+_AMBER_SOFT = "#fff1e8"
+_INK = "#131316"
+_MIST = "#6f6f78"
+_SANS = "'Inter',-apple-system,'Segoe UI',Helvetica,Arial,sans-serif"
+
+
+def _wrap_email(*, preheader: str, body_html: str) -> str:
+    """Table-based layout, all-inline styles — the only markup pattern that
+    renders consistently across Gmail/Outlook/Apple Mail without a build step.
+    """
+    return f"""\
+<!doctype html>
+<html>
+<body style="margin:0;padding:0;background:#f4f4f5;font-family:{_SANS};">
+  <div style="display:none;max-height:0;overflow:hidden;">{preheader}</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:32px 16px;">
+    <tr><td align="center">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:12px;overflow:hidden;">
+        <tr>
+          <td style="background:{_INK};padding:28px 32px;">
+            <span style="color:{_AMBER};font-size:20px;font-weight:700;letter-spacing:0.5px;">BIDSO</span>
+            <span style="color:#fafafa;font-size:20px;font-weight:700;letter-spacing:0.5px;"> LABS</span>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:32px;color:{_INK};font-size:15px;line-height:1.6;">
+            {body_html}
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:20px 32px;background:#fafafa;border-top:1px solid #eee;color:{_MIST};font-size:12px;line-height:1.5;">
+            Bidso Labs — external product &amp; supply submissions.<br>
+            This is an automated message, please don't reply directly to this email.
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>"""
+
+
 def send_acknowledgement_email(*, to: str, reference_number: str, screen_decision_by: str) -> None:
+    body = f"""\
+        <p style="margin:0 0 16px;">Thanks for submitting to Bidso Labs — we've received it and it's now in our queue for review.</p>
+        <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;background:{_AMBER_SOFT};border-radius:8px;margin:0 0 20px;">
+          <tr><td style="padding:16px 20px;">
+            <div style="color:{_MIST};font-size:12px;text-transform:uppercase;letter-spacing:0.5px;margin:0 0 4px;">Reference number</div>
+            <div style="color:{_AMBER};font-size:22px;font-weight:700;">{reference_number}</div>
+          </td></tr>
+        </table>
+        <p style="margin:0 0 8px;">You'll have a first decision by <strong>{screen_decision_by}</strong>.</p>
+        <p style="margin:0;color:{_MIST};font-size:13px;">Keep this reference number handy — you can use it to check your submission's status anytime.</p>"""
     _send(
         to=to,
         subject=f"We've received your submission — {reference_number}",
-        html=(
-            f"<p>Thanks for submitting to Bidso Labs. Your reference number is "
-            f"<strong>{reference_number}</strong>.</p>"
-            f"<p>You'll have a first decision by <strong>{screen_decision_by}</strong>.</p>"
-        ),
+        html=_wrap_email(preheader=f"Your reference number is {reference_number}", body_html=body),
     )
 
 
 def notify_sales_contact(*, company: str, contact_name: str, email: str, looking_for: str | None) -> None:
+    body = f"""\
+        <p style="margin:0 0 16px;">New brand enquiry submitted through Bidso Labs.</p>
+        <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;">
+          <tr><td style="padding:4px 0;color:{_MIST};font-size:13px;width:120px;">Company</td><td style="padding:4px 0;font-weight:600;">{company}</td></tr>
+          <tr><td style="padding:4px 0;color:{_MIST};font-size:13px;">Contact</td><td style="padding:4px 0;">{contact_name} ({email})</td></tr>
+          <tr><td style="padding:4px 0;color:{_MIST};font-size:13px;vertical-align:top;">Looking for</td><td style="padding:4px 0;">{looking_for or 'No detail provided.'}</td></tr>
+        </table>"""
     _send(
         to=settings.sales_contact_email,
         subject=f"New brand enquiry — {company}",
-        html=(
-            f"<p>{contact_name} ({email}) at {company} submitted a brand enquiry.</p>"
-            f"<p>{looking_for or 'No detail provided.'}</p>"
-        ),
+        html=_wrap_email(preheader=f"New brand enquiry from {company}", body_html=body),
     )

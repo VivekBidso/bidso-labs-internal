@@ -49,52 +49,6 @@ def health():
     return {"status": "ok"}
 
 
-@app.get("/admin/config-check")
-def config_check(_user: User = Depends(require_role(*("ADMIN",)))):
-    # Diagnostic only — reports presence/length, never the actual secret
-    # values. Remove once email delivery is confirmed working.
-    from app.config import settings
-    return {
-        "resend_api_key_set": bool(settings.resend_api_key),
-        "resend_api_key_length": len(settings.resend_api_key),
-        "resend_from_address": settings.resend_from_address,
-    }
-
-
-@app.get("/admin/test-email")
-def test_email(_user: User = Depends(require_role(*("ADMIN",)))):
-    # Diagnostic only — makes the real Resend call and surfaces the actual
-    # response/exception instead of swallowing it into server logs we can't
-    # see. Remove once email delivery is confirmed working.
-    import json as _json
-    import urllib.request as _ur
-    from app.config import settings
-
-    body = _json.dumps({
-        "from": settings.resend_from_address,
-        "to": [_user.email],
-        "subject": "Bidso Labs — test send",
-        "html": "<p>Diagnostic test email.</p>",
-    }).encode()
-    request = _ur.Request(
-        "https://api.resend.com/emails",
-        data=body,
-        headers={
-            "Authorization": f"Bearer {settings.resend_api_key}",
-            "Content-Type": "application/json",
-            "User-Agent": "bidso-labs-internal/1.0",
-        },
-        method="POST",
-    )
-    try:
-        with _ur.urlopen(request, timeout=10) as resp:
-            return {"status": resp.status, "body": resp.read().decode()}
-    except _ur.HTTPError as e:
-        return {"error": "HTTPError", "status": e.code, "body": e.read().decode()}
-    except Exception as e:
-        return {"error": type(e).__name__, "message": str(e)}
-
-
 @app.post("/auth/login", response_model=LoginResponse)
 def login(payload: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == payload.email).first()
