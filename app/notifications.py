@@ -62,11 +62,10 @@ def _wrap_email(*, preheader: str, body_html: str) -> str:
   <div style="display:none;max-height:0;overflow:hidden;">{preheader}</div>
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:32px 16px;">
     <tr><td align="center">
-      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:12px;overflow:hidden;">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #eee;">
         <tr>
-          <td style="background:{_INK};padding:28px 32px;">
-            <span style="color:{_AMBER};font-size:20px;font-weight:700;letter-spacing:0.5px;">BIDSO</span>
-            <span style="color:#fafafa;font-size:20px;font-weight:700;letter-spacing:0.5px;"> LABS</span>
+          <td style="background:#ffffff;padding:24px 32px;border-bottom:1px solid #f0f0f0;">
+            <img src="https://labs.bidso.com/bidso-logo.png" alt="Bidso" height="28" style="height:28px;width:auto;display:block;">
           </td>
         </tr>
         <tr>
