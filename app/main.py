@@ -49,6 +49,18 @@ def health():
     return {"status": "ok"}
 
 
+@app.get("/admin/config-check")
+def config_check(_user: User = Depends(require_role(*("ADMIN",)))):
+    # Diagnostic only — reports presence/length, never the actual secret
+    # values. Remove once email delivery is confirmed working.
+    from app.config import settings
+    return {
+        "resend_api_key_set": bool(settings.resend_api_key),
+        "resend_api_key_length": len(settings.resend_api_key),
+        "resend_from_address": settings.resend_from_address,
+    }
+
+
 @app.post("/auth/login", response_model=LoginResponse)
 def login(payload: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == payload.email).first()
