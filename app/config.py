@@ -19,6 +19,7 @@ class Settings(BaseSettings):
 
     resend_api_key: str = ""
     resend_from_address: str = ""
+    sales_contact_email: str = ""
 
     @field_validator("*", mode="before")
     @classmethod
