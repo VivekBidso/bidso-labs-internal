@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 
 class LoginRequest(BaseModel):
@@ -25,22 +25,22 @@ class PresignUploadRequest(BaseModel):
 
 
 class DesignerStage1Request(BaseModel):
-    full_name: str
+    full_name: str = Field(min_length=1, max_length=200)
     email: EmailStr
     phone: str | None = None
     city: str | None = None
     working_title: str | None = None
-    finish_stage: str
-    description: str
+    finish_stage: str = Field(min_length=1)
+    description: str = Field(min_length=1, max_length=5000)
     file_count: int = 0
-    employer_relates: str
-    made_on_employer_time: str
-    can_get_release_letter: str
+    employer_relates: str = Field(min_length=1)
+    made_on_employer_time: str = Field(min_length=1)
+    can_get_release_letter: str = Field(min_length=1)
     has_co_contributors: bool
     co_contributor_names: str | None = None
     has_existing_ip: bool
     ip_number: str | None = None
-    terms_version: str
+    terms_version: str = Field(min_length=1)
 
 
 class DesignerStage1Response(BaseModel):
@@ -51,9 +51,9 @@ class DesignerStage1Response(BaseModel):
 
 
 class ManufacturerRequest(BaseModel):
-    legal_entity_name: str
+    legal_entity_name: str = Field(min_length=1, max_length=200)
     gst_number: str | None = None
-    contact_name: str
+    contact_name: str = Field(min_length=1, max_length=200)
     email: EmailStr
     phone: str | None = None
     factory_location: str | None = None
@@ -62,12 +62,12 @@ class ManufacturerRequest(BaseModel):
     description: str | None = None
     photo_count: int = 0
     certifications: list[str] = []
-    intent: str
+    intent: str = Field(min_length=1)
     ex_works_price: str | None = None
     moq: str | None = None
     lead_time_days: str | None = None
     monthly_capacity: str | None = None
-    terms_version: str
+    terms_version: str = Field(min_length=1)
 
 
 class ManufacturerResponse(BaseModel):
@@ -77,8 +77,8 @@ class ManufacturerResponse(BaseModel):
 
 
 class BrandRequest(BaseModel):
-    company: str
-    contact_name: str
+    company: str = Field(min_length=1, max_length=200)
+    contact_name: str = Field(min_length=1, max_length=200)
     email: EmailStr
     phone: str | None = None
     looking_for: str | None = None
