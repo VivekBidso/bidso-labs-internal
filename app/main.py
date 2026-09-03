@@ -82,6 +82,7 @@ def test_email(_user: User = Depends(require_role(*("ADMIN",)))):
         headers={
             "Authorization": f"Bearer {settings.resend_api_key}",
             "Content-Type": "application/json",
+            "User-Agent": "bidso-labs-internal/1.0",
         },
         method="POST",
     )

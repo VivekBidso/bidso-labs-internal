@@ -28,6 +28,10 @@ def _send(*, to: str, subject: str, html: str) -> None:
         headers={
             "Authorization": f"Bearer {settings.resend_api_key}",
             "Content-Type": "application/json",
+            # Python's default urllib User-Agent gets blocked by Resend's
+            # Cloudflare-fronted API as an obvious bot signature (Cloudflare
+            # error 1010) before the request ever reaches Resend itself.
+            "User-Agent": "bidso-labs-internal/1.0",
         },
         method="POST",
     )
