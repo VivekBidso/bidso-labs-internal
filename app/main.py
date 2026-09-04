@@ -8,12 +8,15 @@ from sqlalchemy.orm import Session
 from app.auth import create_access_token, get_current_user, require_role, verify_password
 from app.business_days import add_business_days
 from app.database import get_db
-from app.models import AuditEvent, SLAClock, Submission, SubmissionDetail, User
+from app.models import AuditEvent, SLAClock, StageAttachment, Submission, SubmissionDetail, User
 from app.notifications import notify_sales_contact, send_acknowledgement_email
 from app.reference_number import next_reference_number
 from app.schemas import (
     BrandRequest,
     BrandResponse,
+    ConfirmAttachmentsRequest,
+    ConfirmAttachmentsResponse,
+    ConfirmedAttachment,
     DesignerStage1Request,
     DesignerStage1Response,
     LoginRequest,
@@ -21,11 +24,12 @@ from app.schemas import (
     ManufacturerRequest,
     ManufacturerResponse,
     PresignUploadRequest,
+    PublicPresignRequest,
     SubmissionStatusResponse,
 )
 from app.status_projection import build_status_projection, format_date
 from app.transitions import record_transition
-from app.uploads import presign_upload
+from app.uploads import TRACK_STAGE, head_object, presign_upload
 
 app = FastAPI(title="Bidso Labs — Internal Review Platform")
 
@@ -65,9 +69,11 @@ def me(user: User = Depends(get_current_user)):
 
 @app.post("/uploads/presign")
 def presign(payload: PresignUploadRequest, _user: User = Depends(get_current_user)):
+    # Staff-side upload path — not wired to any UI yet (Stage 4). Kept for when
+    # a reviewer needs to attach something directly to a submission.
     return presign_upload(
         track=payload.track,
-        reference_number=payload.reference_number,
+        submission_id=payload.reference_number,
         stage=payload.stage,
         filename=payload.filename,
     )
@@ -137,6 +143,7 @@ def submit_designer_stage1(payload: DesignerStage1Request, db: Session = Depends
     send_acknowledgement_email(to=payload.email, reference_number=reference_number, screen_decision_by=screen_decision_by)
 
     return DesignerStage1Response(
+        submission_id=str(submission.id),
         reference_number=reference_number,
         submitted_date=format_date(now),
         screen_decision_by=screen_decision_by,
@@ -161,7 +168,9 @@ def submit_manufacturer(payload: ManufacturerRequest, db: Session = Depends(get_
     )
     db.commit()
 
-    return ManufacturerResponse(reference_number=None, submitted_date=format_date(now), email=payload.email)
+    return ManufacturerResponse(
+        submission_id=str(submission.id), reference_number=None, submitted_date=format_date(now), email=payload.email
+    )
 
 
 @app.post("/public/submissions/brand", response_model=BrandResponse)
@@ -184,6 +193,90 @@ def submit_brand(payload: BrandRequest, db: Session = Depends(get_db)):
     )
 
     return BrandResponse(submitted_date=format_date(now), email=payload.email)
+
+
+@app.post("/public/uploads/presign")
+def public_presign(payload: PublicPresignRequest, db: Session = Depends(get_db)):
+    # Unauthenticated by design, same as the rest of /public — a submitter has
+    # no account. Track and stage are derived from the submission's own row,
+    # never taken from the caller, so a request can't presign into an
+    # arbitrary track/stage it doesn't belong to.
+    submission = db.get(Submission, payload.submission_id)
+    if submission is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
+    stage = TRACK_STAGE.get(submission.track)
+    if stage is None:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="This track doesn't accept file uploads.")
+
+    return presign_upload(
+        track=submission.track,
+        submission_id=str(submission.id),
+        stage=stage,
+        filename=payload.filename,
+    )
+
+
+@app.post("/public/submissions/{submission_id}/attachments/confirm", response_model=ConfirmAttachmentsResponse)
+def confirm_attachments(submission_id: str, payload: ConfirmAttachmentsRequest, db: Session = Depends(get_db)):
+    # Called after the browser has finished uploading straight to R2 with the
+    # presigned POSTs above. Re-checks each key actually landed in the bucket
+    # (head_object) before writing a row — a key that was presigned but never
+    # uploaded (dropped connection, abandoned form) is silently skipped, not
+    # recorded as a phantom attachment.
+    if submission_id != payload.submission_id:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="submission_id mismatch")
+    submission = db.get(Submission, submission_id)
+    if submission is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
+    stage = TRACK_STAGE.get(submission.track)
+    if stage is None:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="This track doesn't accept file uploads.")
+
+    expected_prefix = f"{submission.track}/{submission_id}/{stage}/"
+    confirmed: list[ConfirmedAttachment] = []
+    skipped: list[str] = []
+
+    for key in payload.keys:
+        if not key.startswith(expected_prefix):
+            skipped.append(key)
+            continue
+        meta = head_object(key)
+        if meta is None:
+            skipped.append(key)
+            continue
+        original_filename = key.rsplit("/", 1)[-1].split("-", 1)[-1]
+        db.add(
+            StageAttachment(
+                submission_id=submission.id,
+                stage=stage,
+                uploaded_by=None,
+                file_key=key,
+                original_filename=original_filename,
+                content_type=meta["content_type"],
+                size_bytes=meta["size_bytes"],
+            )
+        )
+        confirmed.append(
+            ConfirmedAttachment(
+                file_key=key,
+                original_filename=original_filename,
+                size_bytes=meta["size_bytes"],
+                content_type=meta["content_type"],
+            )
+        )
+
+    if confirmed:
+        db.add(
+            AuditEvent(
+                submission_id=submission.id,
+                event_type="ATTACHMENTS_UPLOADED",
+                to_status=submission.status,
+                event_metadata={"count": len(confirmed), "keys": [c.file_key for c in confirmed]},
+            )
+        )
+    db.commit()
+
+    return ConfirmAttachmentsResponse(confirmed=confirmed, skipped_keys=skipped)
 
 
 @app.get("/public/submissions/{reference_number}/status", response_model=SubmissionStatusResponse)
@@ -237,6 +330,12 @@ def get_submission_detail(
         .all()
     )
     clocks = db.query(SLAClock).filter(SLAClock.submission_id == submission.id).all()
+    attachments = (
+        db.query(StageAttachment)
+        .filter(StageAttachment.submission_id == submission.id)
+        .order_by(StageAttachment.uploaded_at)
+        .all()
+    )
     return {
         "id": str(submission.id),
         "reference_number": submission.reference_number,
@@ -244,6 +343,16 @@ def get_submission_detail(
         "status": submission.status,
         "created_at": submission.created_at.isoformat(),
         "detail": {d.stage: d.data for d in details},
+        "attachments": [
+            {
+                "file_key": a.file_key,
+                "original_filename": a.original_filename,
+                "content_type": a.content_type,
+                "size_bytes": a.size_bytes,
+                "uploaded_at": a.uploaded_at.isoformat(),
+            }
+            for a in attachments
+        ],
         "audit_events": [
             {
                 "event_type": e.event_type,
@@ -335,10 +444,16 @@ async function loadDetail(id) {
   document.getElementById("list").style.display = "none";
   const el = document.getElementById("detail");
   el.style.display = "block";
+  const fileRows = (d.attachments || []).map(a => `<tr>
+    <td>${a.original_filename || "—"}</td><td>${a.content_type || "—"}</td>
+    <td>${a.size_bytes ? (a.size_bytes / 1024 / 1024).toFixed(2) + " MB" : "—"}</td>
+    <td>${new Date(a.uploaded_at).toLocaleString()}</td></tr>`).join("");
   el.innerHTML = `<div class="back" onclick="backToList()">&larr; Back to list</div>
     <h2>${d.reference_number || d.track + " submission"}</h2>
     <p><span class="status">${d.status}</span> — submitted ${new Date(d.created_at).toLocaleString()}</p>
     <h3>Submitted data</h3><pre>${JSON.stringify(d.detail, null, 2)}</pre>
+    <h3>Files (${(d.attachments || []).length})</h3>
+    ${fileRows ? `<table><thead><tr><th>File</th><th>Type</th><th>Size</th><th>Uploaded</th></tr></thead><tbody>${fileRows}</tbody></table>` : `<p class="small">No files uploaded.</p>`}
     <h3>Audit trail</h3><pre>${JSON.stringify(d.audit_events, null, 2)}</pre>
     <h3>SLA clocks</h3><pre>${JSON.stringify(d.sla_clocks, null, 2)}</pre>`;
 }

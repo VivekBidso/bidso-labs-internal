@@ -157,8 +157,15 @@ class StageAttachment(Base):
         UUID(as_uuid=True), ForeignKey("submissions.id"), nullable=False
     )
     stage: Mapped[str] = mapped_column(String, nullable=False)
-    uploaded_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    # Nullable: public submitters (Designer/Manufacturer intake) have no `users`
+    # row at all — only a staff upload (Stage 4, not built yet) would set this.
+    uploaded_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
     file_key: Mapped[str] = mapped_column(String, nullable=False)
+    original_filename: Mapped[str | None] = mapped_column(String, nullable=True)
+    content_type: Mapped[str | None] = mapped_column(String, nullable=True)
+    size_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

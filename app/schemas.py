@@ -18,6 +18,29 @@ class PresignUploadRequest(BaseModel):
     filename: str
 
 
+class PublicPresignRequest(BaseModel):
+    submission_id: str
+    filename: str = Field(min_length=1, max_length=255)
+    content_type: str | None = None
+
+
+class ConfirmAttachmentsRequest(BaseModel):
+    submission_id: str
+    keys: list[str] = Field(min_length=1, max_length=20)
+
+
+class ConfirmedAttachment(BaseModel):
+    file_key: str
+    original_filename: str | None
+    size_bytes: int | None
+    content_type: str | None
+
+
+class ConfirmAttachmentsResponse(BaseModel):
+    confirmed: list[ConfirmedAttachment]
+    skipped_keys: list[str]
+
+
 # --- Public intake ---------------------------------------------------------
 # Field names mirror bidso-labs-public's own request payloads exactly (see
 # src/pages/DesignerStage1.jsx, Manufacturer.jsx, Brand.jsx handleSubmit) —
@@ -44,6 +67,7 @@ class DesignerStage1Request(BaseModel):
 
 
 class DesignerStage1Response(BaseModel):
+    submission_id: str
     reference_number: str
     submitted_date: str
     screen_decision_by: str
@@ -71,6 +95,7 @@ class ManufacturerRequest(BaseModel):
 
 
 class ManufacturerResponse(BaseModel):
+    submission_id: str
     reference_number: str | None
     submitted_date: str
     email: str
