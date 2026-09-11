@@ -16,7 +16,7 @@ from app.auth import (
 )
 from app.business_days import add_business_days
 from app.config import settings
-from app.database import get_db
+from app.database import SessionLocal, get_db
 from app.evaluation_routes import router as evaluation_router
 from app.models import AuditEvent, SLAClock, StageAttachment, Submission, SubmissionDetail, User
 from app.notifications import notify_sales_contact, send_acknowledgement_email, send_password_reset_email
@@ -44,6 +44,27 @@ from app.transitions import record_transition
 from app.uploads import TRACK_STAGE, head_object, presign_upload
 
 app = FastAPI(title="Bidso Labs — Internal Review Platform")
+
+
+@app.on_event("startup")
+def _sync_bootstrap_admin() -> None:
+    # Re-checked on every boot, not just once at migration time, so setting
+    # (or rotating) ADMIN_BOOTSTRAP_EMAIL/ADMIN_BOOTSTRAP_PASSWORD in Render
+    # and restarting the service is enough to seed or reset that login — no
+    # dependency on migration-history timing. No-op when either is unset.
+    if not (settings.admin_bootstrap_email and settings.admin_bootstrap_password):
+        return
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.email == settings.admin_bootstrap_email).first()
+        password_hash = hash_password(settings.admin_bootstrap_password)
+        if user is None:
+            db.add(User(email=settings.admin_bootstrap_email, password_hash=password_hash, role="ADMIN"))
+        else:
+            user.password_hash = password_hash
+        db.commit()
+    finally:
+        db.close()
 
 # The public intake site is a separate deployable on a different Render
 # domain — browsers block cross-origin calls by default, so it has to be
