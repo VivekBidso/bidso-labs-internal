@@ -5,12 +5,21 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
-from app.auth import create_access_token, get_current_user, require_role, verify_password
+from app.auth import (
+    create_access_token,
+    generate_reset_token,
+    get_current_user,
+    hash_password,
+    require_role,
+    verify_password,
+    verify_reset_token,
+)
 from app.business_days import add_business_days
+from app.config import settings
 from app.database import get_db
 from app.evaluation_routes import router as evaluation_router
 from app.models import AuditEvent, SLAClock, StageAttachment, Submission, SubmissionDetail, User
-from app.notifications import notify_sales_contact, send_acknowledgement_email
+from app.notifications import notify_sales_contact, send_acknowledgement_email, send_password_reset_email
 from app.reference_number import next_reference_number
 from app.schemas import (
     BrandRequest,
@@ -20,12 +29,14 @@ from app.schemas import (
     ConfirmedAttachment,
     DesignerStage1Request,
     DesignerStage1Response,
+    ForgotPasswordRequest,
     LoginRequest,
     LoginResponse,
     ManufacturerRequest,
     ManufacturerResponse,
     PresignUploadRequest,
     PublicPresignRequest,
+    ResetPasswordRequest,
     SubmissionStatusResponse,
 )
 from app.status_projection import build_status_projection, format_date
@@ -68,6 +79,37 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
 @app.get("/auth/me")
 def me(user: User = Depends(get_current_user)):
     return {"id": str(user.id), "email": user.email, "role": user.role}
+
+
+@app.post("/auth/forgot-password")
+def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == payload.email).first()
+    if user is not None:
+        raw_token, token_hash, expires_at = generate_reset_token()
+        user.reset_token_hash = token_hash
+        user.reset_token_expires_at = expires_at
+        db.commit()
+        reset_url = f"{settings.app_public_url}/admin/reset-password?token={raw_token}"
+        send_password_reset_email(to=user.email, reset_url=reset_url)
+    # Same response whether or not the email is registered — don't let this
+    # endpoint be used to discover which emails have an account.
+    return {"message": "If that email has an account, a reset link has been sent."}
+
+
+@app.post("/auth/reset-password")
+def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db)):
+    invalid = HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired reset link")
+    candidates = db.query(User).filter(User.reset_token_hash.isnot(None)).all()
+    user = next((u for u in candidates if verify_reset_token(payload.token, u.reset_token_hash)), None)
+    if user is None:
+        raise invalid
+    if user.reset_token_expires_at is None or user.reset_token_expires_at < datetime.now(timezone.utc):
+        raise invalid
+    user.password_hash = hash_password(payload.new_password)
+    user.reset_token_hash = None
+    user.reset_token_expires_at = None
+    db.commit()
+    return {"message": "Password updated."}
 
 
 @app.post("/uploads/presign")
@@ -373,36 +415,75 @@ def get_submission_detail(
 
 @app.get("/admin", response_class=HTMLResponse)
 def admin_page():
-    return _ADMIN_HTML
+    return _render_admin_html()
 
 
-_ADMIN_HTML = """<!doctype html>
+@app.get("/admin/reset-password", response_class=HTMLResponse)
+def admin_reset_password_page():
+    return _RESET_PASSWORD_HTML
+
+
+def _render_admin_html() -> str:
+    # Pre-MVP-only stopgap: if a bootstrap credential is configured (see
+    # config.py), prefill and SHOW it in plain text on the login form so
+    # there's a working login before forgot-password exists. Once
+    # forgot-password is in real use, unset both env vars in Render and
+    # this reverts to a normal blank, masked login form automatically.
+    bootstrap_active = bool(settings.admin_bootstrap_email and settings.admin_bootstrap_password)
+    email_value = settings.admin_bootstrap_email if bootstrap_active else ""
+    password_value = settings.admin_bootstrap_password if bootstrap_active else ""
+    password_type = "text" if bootstrap_active else "password"
+    stopgap_note = (
+        '<p id="stopgapNote" style="font-size:12px;color:#b45309;margin:0 0 12px;">'
+        "Temporary credential shown below until forgot-password is in use — do not share this page."
+        "</p>"
+        if bootstrap_active
+        else ""
+    )
+    return _ADMIN_HTML_TEMPLATE.format(
+        stopgap_note=stopgap_note,
+        email_value=email_value,
+        password_value=password_value,
+        password_type=password_type,
+    )
+
+
+_ADMIN_HTML_TEMPLATE = """<!doctype html>
 <html>
 <head>
 <meta charset="utf-8">
 <title>Bidso Labs — Internal Review</title>
 <style>
-  body { font-family: -apple-system, sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; color: #1a1a1a; }
-  h1 { font-size: 20px; }
-  #login { display: flex; gap: 8px; margin-bottom: 24px; }
-  input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
-  button { padding: 8px 16px; border: none; background: #1a1a1a; color: white; border-radius: 4px; cursor: pointer; }
-  table { width: 100%; border-collapse: collapse; margin-top: 16px; }
-  th, td { text-align: left; padding: 8px; border-bottom: 1px solid #eee; font-size: 14px; }
-  tr:hover { background: #f7f7f7; cursor: pointer; }
-  .status { font-family: monospace; font-size: 12px; background: #f0f0f0; padding: 2px 6px; border-radius: 3px; }
-  #detail { display: none; margin-top: 24px; padding: 16px; background: #fafafa; border-radius: 8px; }
-  pre { white-space: pre-wrap; font-size: 12px; background: white; padding: 12px; border-radius: 4px; }
-  .back { cursor: pointer; color: #555; margin-bottom: 12px; display: inline-block; }
+  body {{ font-family: -apple-system, sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; color: #1a1a1a; }}
+  h1 {{ font-size: 20px; }}
+  #login {{ display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }}
+  input {{ padding: 8px; border: 1px solid #ccc; border-radius: 4px; }}
+  button {{ padding: 8px 16px; border: none; background: #1a1a1a; color: white; border-radius: 4px; cursor: pointer; }}
+  a.link {{ color: #f46a1f; cursor: pointer; font-size: 13px; text-decoration: none; }}
+  #forgotForm {{ display: none; gap: 8px; align-items: center; margin: 8px 0 24px; }}
+  table {{ width: 100%; border-collapse: collapse; margin-top: 16px; }}
+  th, td {{ text-align: left; padding: 8px; border-bottom: 1px solid #eee; font-size: 14px; }}
+  tr:hover {{ background: #f7f7f7; cursor: pointer; }}
+  .status {{ font-family: monospace; font-size: 12px; background: #f0f0f0; padding: 2px 6px; border-radius: 3px; }}
+  #detail {{ display: none; margin-top: 24px; padding: 16px; background: #fafafa; border-radius: 8px; }}
+  pre {{ white-space: pre-wrap; font-size: 12px; background: white; padding: 12px; border-radius: 4px; }}
+  .back {{ cursor: pointer; color: #555; margin-bottom: 12px; display: inline-block; }}
 </style>
 </head>
 <body>
   <h1>Bidso Labs — Internal Review</h1>
+  {stopgap_note}
   <div id="login">
-    <input id="email" placeholder="email" value="aditya@bidso.com">
-    <input id="password" type="password" placeholder="password">
+    <input id="email" placeholder="email" value="{email_value}">
+    <input id="password" type="{password_type}" placeholder="password" value="{password_value}">
     <button onclick="login()">Log in</button>
+    <a class="link" onclick="toggleForgot()">Forgot password?</a>
     <span id="loginError" style="color:red"></span>
+  </div>
+  <div id="forgotForm">
+    <input id="forgotEmail" placeholder="email">
+    <button onclick="forgotPassword()">Send reset link</button>
+    <span id="forgotMsg" style="font-size:13px;color:#555"></span>
   </div>
   <table id="list" style="display:none">
     <thead><tr><th>Ref #</th><th>Track</th><th>Who</th><th>Status</th><th>Submitted</th></tr></thead>
@@ -414,59 +495,125 @@ _ADMIN_HTML = """<!doctype html>
 const API = window.location.origin;
 let token = localStorage.getItem("bidso_labs_token") || "";
 
-async function login() {
+async function login() {{
   const email = document.getElementById("email").value;
   const password = document.getElementById("password").value;
-  const res = await fetch(API + "/auth/login", {
-    method: "POST", headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({email, password})
-  });
-  if (!res.ok) { document.getElementById("loginError").textContent = "Login failed"; return; }
+  const res = await fetch(API + "/auth/login", {{
+    method: "POST", headers: {{"Content-Type": "application/json"}},
+    body: JSON.stringify({{email, password}})
+  }});
+  if (!res.ok) {{ document.getElementById("loginError").textContent = "Login failed"; return; }}
   const data = await res.json();
   token = data.access_token;
   localStorage.setItem("bidso_labs_token", token);
   document.getElementById("login").style.display = "none";
+  const stopgap = document.getElementById("stopgapNote");
+  if (stopgap) stopgap.style.display = "none";
+  document.getElementById("forgotForm").style.display = "none";
   loadList();
-}
+}}
 
-async function loadList() {
-  const res = await fetch(API + "/admin/submissions", { headers: { Authorization: "Bearer " + token } });
-  if (!res.ok) { document.getElementById("login").style.display = "flex"; return; }
+function toggleForgot() {{
+  const f = document.getElementById("forgotForm");
+  f.style.display = f.style.display === "flex" ? "none" : "flex";
+}}
+
+async function forgotPassword() {{
+  const email = document.getElementById("forgotEmail").value;
+  const msg = document.getElementById("forgotMsg");
+  msg.textContent = "Sending...";
+  const res = await fetch(API + "/auth/forgot-password", {{
+    method: "POST", headers: {{"Content-Type": "application/json"}},
+    body: JSON.stringify({{email}})
+  }});
+  const data = await res.json();
+  msg.textContent = data.message || "If that email has an account, a reset link has been sent.";
+}}
+
+async function loadList() {{
+  const res = await fetch(API + "/admin/submissions", {{ headers: {{ Authorization: "Bearer " + token }} }});
+  if (!res.ok) {{ document.getElementById("login").style.display = "flex"; return; }}
   const rows = await res.json();
   document.getElementById("list").style.display = "table";
   const body = document.getElementById("listBody");
-  body.innerHTML = rows.map(r => `<tr onclick="loadDetail('${r.id}')">
-    <td>${r.reference_number || "—"}</td><td>${r.track}</td><td>${r.summary || "—"}</td>
-    <td><span class="status">${r.status}</span></td><td>${new Date(r.created_at).toLocaleString()}</td>
+  body.innerHTML = rows.map(r => `<tr onclick="loadDetail('${{r.id}}')">
+    <td>${{r.reference_number || "—"}}</td><td>${{r.track}}</td><td>${{r.summary || "—"}}</td>
+    <td><span class="status">${{r.status}}</span></td><td>${{new Date(r.created_at).toLocaleString()}}</td>
   </tr>`).join("");
-}
+}}
 
-async function loadDetail(id) {
-  const res = await fetch(API + "/admin/submissions/" + id, { headers: { Authorization: "Bearer " + token } });
+async function loadDetail(id) {{
+  const res = await fetch(API + "/admin/submissions/" + id, {{ headers: {{ Authorization: "Bearer " + token }} }});
   const d = await res.json();
   document.getElementById("list").style.display = "none";
   const el = document.getElementById("detail");
   el.style.display = "block";
   const fileRows = (d.attachments || []).map(a => `<tr>
-    <td>${a.original_filename || "—"}</td><td>${a.content_type || "—"}</td>
-    <td>${a.size_bytes ? (a.size_bytes / 1024 / 1024).toFixed(2) + " MB" : "—"}</td>
-    <td>${new Date(a.uploaded_at).toLocaleString()}</td></tr>`).join("");
+    <td>${{a.original_filename || "—"}}</td><td>${{a.content_type || "—"}}</td>
+    <td>${{a.size_bytes ? (a.size_bytes / 1024 / 1024).toFixed(2) + " MB" : "—"}}</td>
+    <td>${{new Date(a.uploaded_at).toLocaleString()}}</td></tr>`).join("");
   el.innerHTML = `<div class="back" onclick="backToList()">&larr; Back to list</div>
-    <h2>${d.reference_number || d.track + " submission"}</h2>
-    <p><span class="status">${d.status}</span> — submitted ${new Date(d.created_at).toLocaleString()}</p>
-    <h3>Submitted data</h3><pre>${JSON.stringify(d.detail, null, 2)}</pre>
-    <h3>Files (${(d.attachments || []).length})</h3>
-    ${fileRows ? `<table><thead><tr><th>File</th><th>Type</th><th>Size</th><th>Uploaded</th></tr></thead><tbody>${fileRows}</tbody></table>` : `<p class="small">No files uploaded.</p>`}
-    <h3>Audit trail</h3><pre>${JSON.stringify(d.audit_events, null, 2)}</pre>
-    <h3>SLA clocks</h3><pre>${JSON.stringify(d.sla_clocks, null, 2)}</pre>`;
-}
+    <h2>${{d.reference_number || d.track + " submission"}}</h2>
+    <p><span class="status">${{d.status}}</span> — submitted ${{new Date(d.created_at).toLocaleString()}}</p>
+    <h3>Submitted data</h3><pre>${{JSON.stringify(d.detail, null, 2)}}</pre>
+    <h3>Files (${{(d.attachments || []).length}})</h3>
+    ${{fileRows ? `<table><thead><tr><th>File</th><th>Type</th><th>Size</th><th>Uploaded</th></tr></thead><tbody>${{fileRows}}</tbody></table>` : `<p class="small">No files uploaded.</p>`}}
+    <h3>Audit trail</h3><pre>${{JSON.stringify(d.audit_events, null, 2)}}</pre>
+    <h3>SLA clocks</h3><pre>${{JSON.stringify(d.sla_clocks, null, 2)}}</pre>`;
+}}
 
-function backToList() {
+function backToList() {{
   document.getElementById("detail").style.display = "none";
   document.getElementById("list").style.display = "table";
-}
+}}
 
-if (token) { document.getElementById("login").style.display = "none"; loadList(); }
+if (token) {{
+  document.getElementById("login").style.display = "none";
+  const stopgap = document.getElementById("stopgapNote");
+  if (stopgap) stopgap.style.display = "none";
+  loadList();
+}}
+</script>
+</body>
+</html>"""
+
+
+_RESET_PASSWORD_HTML = """<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Reset password — Bidso Labs</title>
+<style>
+  body { font-family: -apple-system, sans-serif; max-width: 420px; margin: 80px auto; padding: 0 20px; color: #1a1a1a; }
+  h1 { font-size: 18px; }
+  input { display: block; width: 100%; box-sizing: border-box; padding: 10px; margin: 8px 0; border: 1px solid #ccc; border-radius: 4px; }
+  button { padding: 10px 20px; border: none; background: #1a1a1a; color: white; border-radius: 4px; cursor: pointer; }
+  #msg { font-size: 13px; margin-top: 12px; }
+</style>
+</head>
+<body>
+  <h1>Set a new password</h1>
+  <input id="newPassword" type="password" placeholder="New password (min 8 characters)">
+  <button onclick="submitReset()">Reset password</button>
+  <div id="msg"></div>
+
+<script>
+const params = new URLSearchParams(window.location.search);
+const token = params.get("token");
+
+async function submitReset() {
+  const newPassword = document.getElementById("newPassword").value;
+  const msg = document.getElementById("msg");
+  if (!token) { msg.textContent = "Missing reset token — use the link from your email."; msg.style.color = "red"; return; }
+  const res = await fetch(window.location.origin + "/auth/reset-password", {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({token, new_password: newPassword})
+  });
+  const data = await res.json();
+  if (!res.ok) { msg.textContent = data.detail || "Reset failed."; msg.style.color = "red"; return; }
+  msg.textContent = "Password updated — you can log in now.";
+  msg.style.color = "green";
+}
 </script>
 </body>
 </html>"""

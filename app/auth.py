@@ -1,3 +1,4 @@
+import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -21,6 +22,22 @@ def hash_password(password: str) -> str:
 
 def verify_password(password: str, password_hash: str) -> bool:
     return pwd_context.verify(password, password_hash)
+
+
+RESET_TOKEN_TTL_MINUTES = 60
+
+
+def generate_reset_token() -> tuple[str, str, datetime]:
+    """Returns (raw_token_for_the_email_link, hash_to_store, expiry) — same
+    hash-at-rest discipline as a password, since anyone with DB read access
+    should not be able to mint a working reset link from the stored value.
+    """
+    raw = secrets.token_urlsafe(32)
+    return raw, pwd_context.hash(raw), datetime.now(timezone.utc) + timedelta(minutes=RESET_TOKEN_TTL_MINUTES)
+
+
+def verify_reset_token(raw_token: str, token_hash: str) -> bool:
+    return pwd_context.verify(raw_token, token_hash)
 
 
 def create_access_token(user_id: uuid.UUID, role: str) -> str:

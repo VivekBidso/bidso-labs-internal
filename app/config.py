@@ -21,6 +21,20 @@ class Settings(BaseSettings):
     resend_from_address: str = ""
     sales_contact_email: str = ""
 
+    # Pre-MVP-only: seeds/resets one known admin login on deploy and shows
+    # it, visibly, on the login form itself — a deliberate stopgap while
+    # this is the only account and forgot-password is being built (see
+    # evaluation-engine-phased-plan.md). Never committed to git; set only in
+    # Render's dashboard. Unset both to turn the stopgap off once
+    # forgot-password ships.
+    admin_bootstrap_email: str = ""
+    admin_bootstrap_password: str = ""
+
+    # Public origin of the internal app itself — used to build the
+    # password-reset link sent by email. Falls back to the known Render
+    # default if unset.
+    app_public_url: str = "https://bidso-labs-internal.onrender.com"
+
     @field_validator("*", mode="before")
     @classmethod
     def strip_whitespace(cls, value):

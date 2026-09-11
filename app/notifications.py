@@ -104,6 +104,18 @@ def send_acknowledgement_email(*, to: str, reference_number: str, screen_decisio
     )
 
 
+def send_password_reset_email(*, to: str, reset_url: str) -> None:
+    body = f"""\
+        <p style="margin:0 0 16px;">A password reset was requested for your Bidso Labs internal login.</p>
+        <p style="margin:0 0 20px;"><a href="{reset_url}" style="display:inline-block;background:{_AMBER};color:#ffffff;text-decoration:none;padding:10px 20px;border-radius:6px;font-weight:600;">Reset your password</a></p>
+        <p style="margin:0;color:{_MIST};font-size:13px;">This link expires in 60 minutes. If you didn't request this, you can ignore this email.</p>"""
+    _send(
+        to=to,
+        subject="Reset your Bidso Labs password",
+        html=_wrap_email(preheader="Reset your Bidso Labs password", body_html=body),
+    )
+
+
 def notify_sales_contact(*, company: str, contact_name: str, email: str, looking_for: str | None) -> None:
     body = f"""\
         <p style="margin:0 0 16px;">New brand enquiry submitted through Bidso Labs.</p>

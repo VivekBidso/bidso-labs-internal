@@ -32,3 +32,9 @@ services:
         sync: false
       - key: RESEND_FROM_ADDRESS
         value: noreply@labs.bidso.com
+      - key: ADMIN_BOOTSTRAP_EMAIL
+        sync: false
+      - key: ADMIN_BOOTSTRAP_PASSWORD
+        sync: false
+      - key: APP_PUBLIC_URL
+        value: https://bidso-labs-internal.onrender.com

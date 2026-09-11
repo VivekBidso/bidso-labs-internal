@@ -35,6 +35,13 @@ class User(Base):
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
+    # Forgot-password: a single-use token, hashed at rest same as the
+    # password itself — never store the raw token server-side, only what's
+    # needed to verify the one emailed to the user. Nulled out once used or
+    # replaced by a newer request.
+    reset_token_hash: Mapped[str | None] = mapped_column(String, nullable=True)
+    reset_token_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
 
 class TermsVersion(Base):
     __tablename__ = "terms_versions"
