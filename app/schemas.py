@@ -168,6 +168,7 @@ class DetailedScreenRequest(BaseModel):
     bom_cost: float = Field(gt=0)
     target_price: float = Field(gt=0)
     scores: dict[str, int]  # 7 keys, 1-5 each — see evaluation_engine.SCORE_WEIGHTS
+    rationale: str = Field(min_length=1, max_length=4000)
 
 
 class DetailedScreenResponse(BaseModel):

@@ -115,6 +115,7 @@ def detailed_screen(
             scores=payload.scores,
             composite=composite,
             zone=zone,
+            rationale=payload.rationale,
             reviewer_id=user.id,
         )
     )

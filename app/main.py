@@ -1,3 +1,4 @@
+import pathlib
 from datetime import datetime, timedelta, timezone
 
 from fastapi import Depends, FastAPI, HTTPException, status
@@ -18,7 +19,17 @@ from app.business_days import add_business_days
 from app.config import settings
 from app.database import SessionLocal, get_db
 from app.evaluation_routes import router as evaluation_router
-from app.models import AuditEvent, SLAClock, StageAttachment, Submission, SubmissionDetail, User
+from app.models import (
+    AuditEvent,
+    DetailedScoreSheet,
+    EvaluationDecision,
+    ScreenAssessment,
+    SLAClock,
+    StageAttachment,
+    Submission,
+    SubmissionDetail,
+    User,
+)
 from app.notifications import notify_sales_contact, send_acknowledgement_email, send_password_reset_email
 from app.reference_number import next_reference_number
 from app.schemas import (
@@ -402,6 +413,9 @@ def get_submission_detail(
         .order_by(StageAttachment.uploaded_at)
         .all()
     )
+    screen = db.query(ScreenAssessment).filter(ScreenAssessment.submission_id == submission.id).first()
+    score_sheet = db.query(DetailedScoreSheet).filter(DetailedScoreSheet.submission_id == submission.id).first()
+    decision = db.query(EvaluationDecision).filter(EvaluationDecision.submission_id == submission.id).first()
     return {
         "id": str(submission.id),
         "reference_number": submission.reference_number,
@@ -409,6 +423,41 @@ def get_submission_detail(
         "status": submission.status,
         "created_at": submission.created_at.isoformat(),
         "detail": {d.stage: d.data for d in details},
+        "first_screen": (
+            {
+                "knockouts": screen.knockouts,
+                "gates": screen.gates,
+                "reads": screen.reads,
+                "rule_result": screen.rule_result,
+                "created_at": screen.created_at.isoformat(),
+            }
+            if screen
+            else None
+        ),
+        "detailed_screen": (
+            {
+                "bom_cost": score_sheet.bom_cost,
+                "target_price": score_sheet.target_price,
+                "markup_pct": score_sheet.markup_pct,
+                "markup_band": score_sheet.markup_band,
+                "scores": score_sheet.scores,
+                "composite": score_sheet.composite,
+                "zone": score_sheet.zone,
+                "rationale": score_sheet.rationale,
+                "created_at": score_sheet.created_at.isoformat(),
+            }
+            if score_sheet
+            else None
+        ),
+        "decision": (
+            {
+                "outcome": decision.outcome,
+                "rationale": decision.rationale,
+                "decided_at": decision.decided_at.isoformat(),
+            }
+            if decision
+            else None
+        ),
         "attachments": [
             {
                 "file_key": a.file_key,
@@ -444,6 +493,9 @@ def admin_reset_password_page():
     return _RESET_PASSWORD_HTML
 
 
+_ADMIN_HTML_PATH = pathlib.Path(__file__).parent / "admin_ui.html"
+
+
 def _render_admin_html() -> str:
     # Pre-MVP-only stopgap: if a bootstrap credential is configured (see
     # config.py), prefill and SHOW it in plain text on the login form so
@@ -454,149 +506,11 @@ def _render_admin_html() -> str:
     email_value = settings.admin_bootstrap_email if bootstrap_active else ""
     password_value = settings.admin_bootstrap_password if bootstrap_active else ""
     password_type = "text" if bootstrap_active else "password"
-    stopgap_note = (
-        '<p id="stopgapNote" style="font-size:12px;color:#b45309;margin:0 0 12px;">'
-        "Temporary credential shown below until forgot-password is in use — do not share this page."
-        "</p>"
-        if bootstrap_active
-        else ""
-    )
-    return _ADMIN_HTML_TEMPLATE.format(
-        stopgap_note=stopgap_note,
-        email_value=email_value,
-        password_value=password_value,
-        password_type=password_type,
-    )
-
-
-_ADMIN_HTML_TEMPLATE = """<!doctype html>
-<html>
-<head>
-<meta charset="utf-8">
-<title>Bidso Labs — Internal Review</title>
-<style>
-  body {{ font-family: -apple-system, sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; color: #1a1a1a; }}
-  h1 {{ font-size: 20px; }}
-  #login {{ display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }}
-  input {{ padding: 8px; border: 1px solid #ccc; border-radius: 4px; }}
-  button {{ padding: 8px 16px; border: none; background: #1a1a1a; color: white; border-radius: 4px; cursor: pointer; }}
-  a.link {{ color: #f46a1f; cursor: pointer; font-size: 13px; text-decoration: none; }}
-  #forgotForm {{ display: none; gap: 8px; align-items: center; margin: 8px 0 24px; }}
-  table {{ width: 100%; border-collapse: collapse; margin-top: 16px; }}
-  th, td {{ text-align: left; padding: 8px; border-bottom: 1px solid #eee; font-size: 14px; }}
-  tr:hover {{ background: #f7f7f7; cursor: pointer; }}
-  .status {{ font-family: monospace; font-size: 12px; background: #f0f0f0; padding: 2px 6px; border-radius: 3px; }}
-  #detail {{ display: none; margin-top: 24px; padding: 16px; background: #fafafa; border-radius: 8px; }}
-  pre {{ white-space: pre-wrap; font-size: 12px; background: white; padding: 12px; border-radius: 4px; }}
-  .back {{ cursor: pointer; color: #555; margin-bottom: 12px; display: inline-block; }}
-</style>
-</head>
-<body>
-  <h1>Bidso Labs — Internal Review</h1>
-  {stopgap_note}
-  <div id="login">
-    <input id="email" placeholder="email" value="{email_value}">
-    <input id="password" type="{password_type}" placeholder="password" value="{password_value}">
-    <button onclick="login()">Log in</button>
-    <a class="link" onclick="toggleForgot()">Forgot password?</a>
-    <span id="loginError" style="color:red"></span>
-  </div>
-  <div id="forgotForm">
-    <input id="forgotEmail" placeholder="email">
-    <button onclick="forgotPassword()">Send reset link</button>
-    <span id="forgotMsg" style="font-size:13px;color:#555"></span>
-  </div>
-  <table id="list" style="display:none">
-    <thead><tr><th>Ref #</th><th>Track</th><th>Who</th><th>Status</th><th>Submitted</th></tr></thead>
-    <tbody id="listBody"></tbody>
-  </table>
-  <div id="detail"></div>
-
-<script>
-const API = window.location.origin;
-let token = localStorage.getItem("bidso_labs_token") || "";
-
-async function login() {{
-  const email = document.getElementById("email").value;
-  const password = document.getElementById("password").value;
-  const res = await fetch(API + "/auth/login", {{
-    method: "POST", headers: {{"Content-Type": "application/json"}},
-    body: JSON.stringify({{email, password}})
-  }});
-  if (!res.ok) {{ document.getElementById("loginError").textContent = "Login failed"; return; }}
-  const data = await res.json();
-  token = data.access_token;
-  localStorage.setItem("bidso_labs_token", token);
-  document.getElementById("login").style.display = "none";
-  const stopgap = document.getElementById("stopgapNote");
-  if (stopgap) stopgap.style.display = "none";
-  document.getElementById("forgotForm").style.display = "none";
-  loadList();
-}}
-
-function toggleForgot() {{
-  const f = document.getElementById("forgotForm");
-  f.style.display = f.style.display === "flex" ? "none" : "flex";
-}}
-
-async function forgotPassword() {{
-  const email = document.getElementById("forgotEmail").value;
-  const msg = document.getElementById("forgotMsg");
-  msg.textContent = "Sending...";
-  const res = await fetch(API + "/auth/forgot-password", {{
-    method: "POST", headers: {{"Content-Type": "application/json"}},
-    body: JSON.stringify({{email}})
-  }});
-  const data = await res.json();
-  msg.textContent = data.message || "If that email has an account, a reset link has been sent.";
-}}
-
-async function loadList() {{
-  const res = await fetch(API + "/admin/submissions", {{ headers: {{ Authorization: "Bearer " + token }} }});
-  if (!res.ok) {{ document.getElementById("login").style.display = "flex"; return; }}
-  const rows = await res.json();
-  document.getElementById("list").style.display = "table";
-  const body = document.getElementById("listBody");
-  body.innerHTML = rows.map(r => `<tr onclick="loadDetail('${{r.id}}')">
-    <td>${{r.reference_number || "—"}}</td><td>${{r.track}}</td><td>${{r.summary || "—"}}</td>
-    <td><span class="status">${{r.status}}</span></td><td>${{new Date(r.created_at).toLocaleString()}}</td>
-  </tr>`).join("");
-}}
-
-async function loadDetail(id) {{
-  const res = await fetch(API + "/admin/submissions/" + id, {{ headers: {{ Authorization: "Bearer " + token }} }});
-  const d = await res.json();
-  document.getElementById("list").style.display = "none";
-  const el = document.getElementById("detail");
-  el.style.display = "block";
-  const fileRows = (d.attachments || []).map(a => `<tr>
-    <td>${{a.original_filename || "—"}}</td><td>${{a.content_type || "—"}}</td>
-    <td>${{a.size_bytes ? (a.size_bytes / 1024 / 1024).toFixed(2) + " MB" : "—"}}</td>
-    <td>${{new Date(a.uploaded_at).toLocaleString()}}</td></tr>`).join("");
-  el.innerHTML = `<div class="back" onclick="backToList()">&larr; Back to list</div>
-    <h2>${{d.reference_number || d.track + " submission"}}</h2>
-    <p><span class="status">${{d.status}}</span> — submitted ${{new Date(d.created_at).toLocaleString()}}</p>
-    <h3>Submitted data</h3><pre>${{JSON.stringify(d.detail, null, 2)}}</pre>
-    <h3>Files (${{(d.attachments || []).length}})</h3>
-    ${{fileRows ? `<table><thead><tr><th>File</th><th>Type</th><th>Size</th><th>Uploaded</th></tr></thead><tbody>${{fileRows}}</tbody></table>` : `<p class="small">No files uploaded.</p>`}}
-    <h3>Audit trail</h3><pre>${{JSON.stringify(d.audit_events, null, 2)}}</pre>
-    <h3>SLA clocks</h3><pre>${{JSON.stringify(d.sla_clocks, null, 2)}}</pre>`;
-}}
-
-function backToList() {{
-  document.getElementById("detail").style.display = "none";
-  document.getElementById("list").style.display = "table";
-}}
-
-if (token) {{
-  document.getElementById("login").style.display = "none";
-  const stopgap = document.getElementById("stopgapNote");
-  if (stopgap) stopgap.style.display = "none";
-  loadList();
-}}
-</script>
-</body>
-</html>"""
+    html = _ADMIN_HTML_PATH.read_text()
+    html = html.replace("@@EMAIL_VALUE@@", email_value)
+    html = html.replace("@@PASSWORD_VALUE@@", password_value)
+    html = html.replace("@@PASSWORD_TYPE@@", password_type)
+    return html
 
 
 _RESET_PASSWORD_HTML = """<!doctype html>

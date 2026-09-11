@@ -1,0 +1,712 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Bidso Labs — Internal Review</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#141517; --rail:#191A1D; --surface:#1F2124; --raised:#26282C; --inset:#1A1B1E;
+  --line:#33363B; --line-strong:#454950;
+  --text:#E9E7E2; --muted:#9C9EA4; --faint:#6B6E75;
+  --amber:#E9A825; --amber-dim:rgba(233,168,37,.14); --amber-line:rgba(233,168,37,.45);
+  --red:#D8544E; --red-dim:rgba(216,84,78,.14);
+  --green:#5DB37E; --green-dim:rgba(93,179,126,.14);
+  --r:6px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,sans-serif;font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+a{color:var(--amber);text-decoration:none;cursor:pointer}
+h1,h2,h3{margin:0;font-weight:600;letter-spacing:-.01em}
+h1{font-size:20px} h2{font-size:15px} h3{font-size:13px}
+.num{font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)} .faint{color:var(--faint)} .small{font-size:12px}
+.amber{color:var(--amber)} .red{color:var(--red)} .green{color:var(--green)}
+
+.app{display:none;grid-template-columns:220px 1fr;min-height:100vh}
+.app.on{display:grid}
+.rail{background:var(--rail);border-right:1px solid var(--line);padding:16px 12px;position:sticky;top:0;height:100vh;overflow:auto}
+.brand{display:flex;align-items:baseline;gap:8px;padding:2px 8px 16px}
+.brand b{font-weight:700;font-size:14px}
+.brand span{color:var(--muted);font-size:12px}
+.rail-group{margin-top:12px}
+.rail-group>div{font-size:11px;color:var(--faint);padding:0 8px 6px;text-transform:uppercase;letter-spacing:.03em}
+.nav button{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;text-align:left;background:none;border:0;border-radius:var(--r);padding:7px 8px;color:var(--muted);cursor:pointer;margin-bottom:1px}
+.nav button:hover{background:var(--surface);color:var(--text)}
+.nav button.on{background:var(--amber-dim);color:var(--text)}
+.nav button .k{font-size:11px;color:var(--faint);font-variant-numeric:tabular-nums}
+.main{min-width:0}
+.top{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 24px;border-bottom:1px solid var(--line);background:var(--bg);position:sticky;top:0;z-index:5}
+.crumb{color:var(--muted);font-size:13px}
+.crumb b{color:var(--text);font-weight:500}
+.screen{display:none;padding:22px 24px 80px;max-width:1100px}
+.screen.on{display:block}
+.head{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;margin-bottom:18px}
+.head p{color:var(--muted);margin-top:4px}
+.actions{display:flex;gap:8px;flex-shrink:0}
+
+.btn{background:var(--raised);border:1px solid var(--line-strong);border-radius:var(--r);padding:7px 12px;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--amber);border-color:var(--amber);color:#141517;font-weight:600}
+.btn.danger{border-color:var(--red);color:var(--red)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px 18px}
+.card+.card{margin-top:12px}
+.card h2{margin-bottom:10px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.grid-3-2{display:grid;grid-template-columns:3fr 2fr;gap:14px;align-items:start}
+.kv{display:grid;grid-template-columns:150px 1fr;gap:6px 14px;font-size:13px;margin:0}
+.kv dt{color:var(--muted)} .kv dd{margin:0}
+.tag{display:inline-block;font-size:11px;padding:2px 7px;border-radius:4px;border:1px solid var(--line-strong);color:var(--muted)}
+.tag.amber{border-color:var(--amber-line);color:var(--amber);background:var(--amber-dim)}
+.tag.red{border-color:var(--red);color:var(--red);background:var(--red-dim)}
+.tag.green{border-color:var(--green);color:var(--green);background:var(--green-dim)}
+.field{display:flex;flex-direction:column;gap:5px;margin-bottom:12px}
+.field label{font-size:12px;color:var(--muted)}
+.field input,.field textarea{background:var(--inset);border:1px solid var(--line);border-radius:var(--r);padding:8px 10px;width:100%}
+.field textarea{min-height:60px;resize:vertical}
+.field .hint{font-size:12px;color:var(--faint)}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.sep{height:1px;background:var(--line);margin:14px 0}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-weight:500;color:var(--muted);padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+tr.link{cursor:pointer} tr.link:hover td{background:var(--raised)}
+td.r,th.r{text-align:right}
+.back{display:inline-block;font-size:12px;color:var(--muted);margin-bottom:10px;cursor:pointer}
+.back:hover{color:var(--amber)}
+
+.crit{border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:8px;background:var(--surface)}
+.crit.gate{border-left:3px solid var(--red)}
+.crit.research{border-left:3px solid var(--line-strong)}
+.crit-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:8px}
+.tiers{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:6px 0}
+.tier{border:1px solid var(--line);border-radius:var(--r);padding:8px 10px;font-size:12px;cursor:pointer;background:var(--inset);text-align:left}
+.tier.on{border-color:var(--amber);background:var(--amber-dim)}
+.tier.on.bad{border-color:var(--red);background:var(--red-dim)}
+.tier b{display:block;font-weight:500}
+.evidence textarea{background:var(--inset);border:1px solid var(--line);border-radius:var(--r);padding:8px 10px;width:100%;min-height:44px;font-size:13px;margin-top:6px}
+.knock{display:grid;grid-template-columns:1.3fr 1fr;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line);font-size:13px}
+.knock:last-child{border-bottom:0}
+.knock .res{display:flex;gap:4px;flex-wrap:wrap}
+.knock .res button{background:var(--inset);border:1px solid var(--line);border-radius:4px;padding:4px 9px;font-size:12px;cursor:pointer;color:var(--muted)}
+.knock .res button.on{border-color:var(--green);color:var(--green)}
+.knock .res button.on.bad{border-color:var(--red);color:var(--red)}
+.knock .res button.on.flag{border-color:var(--amber);color:var(--amber)}
+.verdict{border:1px solid var(--amber-line);background:var(--amber-dim);border-radius:8px;padding:14px 16px}
+.verdict h2{margin-bottom:6px}
+
+.score{display:grid;grid-template-columns:150px 34px 1fr;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line);font-size:13px}
+.score:last-child{border-bottom:0}
+.score .w{color:var(--muted);font-variant-numeric:tabular-nums;font-size:12px}
+.pips{display:flex;gap:4px}
+.pips button{width:30px;height:28px;border:1px solid var(--line);background:var(--inset);border-radius:4px;cursor:pointer;color:var(--muted);font-variant-numeric:tabular-nums}
+.pips button.on{border-color:var(--amber);background:var(--amber-dim);color:var(--text)}
+.zone{position:relative;height:34px;border-radius:6px;overflow:hidden;background:var(--raised);border:1px solid var(--line);margin:12px 0 6px}
+.zone .band{position:absolute;top:0;bottom:0}
+.zone .mark{position:absolute;top:0;bottom:0;width:2px;background:var(--amber)}
+.zone .mark::after{content:attr(data-v);position:absolute;top:7px;left:8px;font-size:12px;font-weight:600;color:var(--amber)}
+.zonekey{display:flex;gap:16px;font-size:12px;color:var(--muted)}
+.zonekey i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.stat{padding:12px 14px;background:var(--inset);border:1px solid var(--line);border-radius:8px}
+.stat .v{font-size:20px;font-weight:600;font-variant-numeric:tabular-nums}
+.stat .l{font-size:12px;color:var(--muted)}
+.note{font-size:12px;color:var(--muted);border-left:2px solid var(--line-strong);padding-left:10px;margin-top:10px}
+.hidden{display:none!important}
+.errbox{font-size:13px;color:var(--red);margin-top:10px}
+
+/* login */
+#loginScreen{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
+#loginScreen.hidden{display:none}
+#loginCard{width:360px}
+#loginCard h1{margin-bottom:16px}
+#loginCard .stopgapNote{font-size:12px;color:#b45309;margin:0 0 12px}
+#loginCard input{margin-bottom:8px}
+</style>
+</head>
+<body>
+
+<div id="loginScreen">
+  <div id="loginCard" class="card">
+    <h1>Bidso Labs — Internal Review</h1>
+    <p class="stopgapNote hidden" id="stopgapNote">Temporary credential shown below until forgot-password is in use — do not share this page.</p>
+    <div class="field"><label>Email</label><input id="email" value="@@EMAIL_VALUE@@"></div>
+    <div class="field"><label>Password</label><input id="password" type="@@PASSWORD_TYPE@@" value="@@PASSWORD_VALUE@@"></div>
+    <div class="row"><button class="btn primary" onclick="login()">Log in</button>
+      <a onclick="toggleForgot()">Forgot password?</a></div>
+    <div id="forgotForm" class="hidden" style="margin-top:10px">
+      <div class="field"><label>Email</label><input id="forgotEmail"></div>
+      <button class="btn" onclick="forgotPassword()">Send reset link</button>
+      <p class="small muted" id="forgotMsg" style="margin-top:8px"></p>
+    </div>
+    <p class="errbox" id="loginError"></p>
+  </div>
+</div>
+
+<div class="app" id="app">
+<aside class="rail">
+  <div class="brand"><b>Bidso Labs</b><span>Evaluation</span></div>
+  <div class="rail-group"><div>Work</div>
+    <nav class="nav">
+      <button data-s="queue" onclick="showScreen('queue')">Queue <span class="k" id="cnt-all">0</span></button>
+    </nav></div>
+  <div class="rail-group"><div>Designer track</div>
+    <nav class="nav">
+      <button data-s="list-first" onclick="showList('first')">First screen <span class="k" id="cnt-first">0</span></button>
+      <button data-s="list-detailed" onclick="showList('detailed')">Detailed screen <span class="k" id="cnt-detailed">0</span></button>
+      <button data-s="list-decision" onclick="showList('decision')">Decision <span class="k" id="cnt-decision">0</span></button>
+    </nav></div>
+</aside>
+
+<div class="main">
+<div class="top">
+  <div class="crumb" id="crumb"><b>Queue</b></div>
+  <div class="row"><span class="small muted" id="whoami"></span><a onclick="logout()">Log out</a></div>
+</div>
+
+<!-- QUEUE -->
+<section class="screen on" id="s-queue">
+  <div class="head"><div><h1>Queue</h1><p>All submissions, newest first.</p></div></div>
+  <div class="card" style="padding:0"><table>
+    <thead><tr><th>Ref</th><th>Who</th><th>Track</th><th>Status</th><th>Submitted</th><th></th></tr></thead>
+    <tbody id="queueBody"></tbody>
+  </table></div>
+</section>
+
+<!-- LIST: first screen -->
+<section class="screen" id="s-list-first">
+  <div class="head"><div><h1>First screen</h1><p>Awaiting a knockouts / gates / research-reads pass.</p></div></div>
+  <div class="card" style="padding:0"><table>
+    <thead><tr><th>Ref</th><th>Who</th><th>Submitted</th><th></th></tr></thead>
+    <tbody id="listFirstBody"></tbody>
+  </table></div>
+</section>
+
+<!-- LIST: detailed screen -->
+<section class="screen" id="s-list-detailed">
+  <div class="head"><div><h1>Detailed screen</h1><p>Passed first screen — inputs and scores to enter.</p></div></div>
+  <div class="card" style="padding:0"><table>
+    <thead><tr><th>Ref</th><th>Who</th><th>First-screen result</th><th></th></tr></thead>
+    <tbody id="listDetailedBody"></tbody>
+  </table></div>
+</section>
+
+<!-- LIST: decision -->
+<section class="screen" id="s-list-decision">
+  <div class="head"><div><h1>Decision</h1><p>Scores saved — ready for a decision.</p></div></div>
+  <div class="card" style="padding:0"><table>
+    <thead><tr><th>Ref</th><th>Who</th><th>Composite</th><th>Zone</th><th></th></tr></thead>
+    <tbody id="listDecisionBody"></tbody>
+  </table></div>
+</section>
+
+<!-- RECORD (raw view) -->
+<section class="screen" id="s-record">
+  <span class="back" onclick="showScreen('queue')">&larr; Back to queue</span>
+  <div id="recordBody"></div>
+</section>
+
+<!-- FIRST SCREEN FORM -->
+<section class="screen" id="s-first">
+  <span class="back" onclick="backFromForm()">&larr; Back</span>
+  <div class="head"><div><h1 id="first-title">First screen</h1><p>Every research read needs a tier and evidence before submitting.</p></div></div>
+
+  <div class="card" style="margin-bottom:14px"><h2>Submitted material</h2>
+    <dl class="kv" id="first-submitted"></dl>
+  </div>
+
+  <div class="card"><h2>Knockouts</h2>
+    <p class="small muted" style="margin-bottom:6px">Any one ending in "→ KO" would end the submission as a screen decline — recorded here for the file, not yet enforced automatically.</p>
+    <div id="knockouts"></div>
+  </div>
+
+  <div class="row" style="justify-content:space-between;margin:16px 0 8px"><h2 style="margin:0">Gates</h2><span class="small muted">Bottom tier is an instant no-go</span></div>
+  <div id="gates"></div>
+
+  <div class="row" style="justify-content:space-between;margin:16px 0 8px"><h2 style="margin:0">Research reads</h2><span class="small muted">Drives the go / no-go rule below</span></div>
+  <div id="reads"></div>
+
+  <div class="verdict" style="margin-top:8px"><h2>Rule preview</h2>
+    <p class="small muted" style="margin-bottom:10px">Diff not bottom-tier <b>and</b> fewer than two bottom tiers among Market / Concentration / Brand &rarr; go. This is a live preview — the submitted result is computed server-side.</p>
+    <p id="first-rule-preview" class="tag">Fill in all four reads</p>
+    <div class="row" style="margin-top:12px">
+      <button class="btn primary" id="first-submit" onclick="submitFirstScreen()" disabled>Submit first screen</button>
+      <span class="small muted" id="first-status"></span>
+    </div>
+  </div>
+  <p class="errbox" id="first-error"></p>
+</section>
+
+<!-- DETAILED SCREEN FORM -->
+<section class="screen" id="s-detailed">
+  <span class="back" onclick="backFromForm()">&larr; Back</span>
+  <div class="head"><div><h1 id="detailed-title">Detailed screen</h1><p>Two inputs, then seven scores, 1&ndash;5 each.</p></div></div>
+  <div id="detailed-blocked" class="card hidden"><p class="small">This submission hasn't passed first screen yet.</p></div>
+  <div id="detailed-body">
+    <div class="card" style="margin-bottom:14px"><h2>Inputs</h2>
+      <div class="grid2">
+        <div class="field"><label>BoM cost, per unit (INR)</label><input id="in-bom" type="number" step="0.01" oninput="recomputeDetailed()"></div>
+        <div class="field"><label>Target selling price, net wholesale (INR)</label><input id="in-price" type="number" step="0.01" oninput="recomputeDetailed()"></div>
+      </div>
+      <div class="stat"><div class="v" id="markup-v">&mdash;</div><div class="l" id="markup-l">Markup on BoM cost</div></div>
+    </div>
+
+    <h2 style="margin:0 0 8px">Scores</h2>
+    <div class="grid-3-2">
+      <div class="card">
+        <div class="score" style="color:var(--muted);font-size:12px;padding:0 0 6px"><span>Criterion</span><span>Wt</span><span>1&ndash;5</span></div>
+        <div id="scoreRows"></div>
+        <div class="field" style="margin-top:10px"><label>Rationale &mdash; mandatory</label><textarea id="detailed-rationale" oninput="recomputeDetailed()"></textarea></div>
+        <div class="row"><button class="btn primary" id="detailed-submit" onclick="submitDetailedScreen()" disabled>Save scores</button>
+          <span class="small muted" id="detailed-status"></span></div>
+        <p class="errbox" id="detailed-error"></p>
+      </div>
+      <div class="card"><h2>Composite</h2>
+        <div class="stat"><div class="v" id="comp-v">&mdash;</div><div class="l" id="comp-l">Engineering-drawing band</div></div>
+        <div class="zone" id="zone-bar"><div class="band" id="zone-lo" style="left:0;background:var(--red-dim)"></div><div class="band" id="zone-mid" style="background:var(--raised)"></div><div class="band" id="zone-hi" style="background:var(--green-dim)"></div><div class="mark" id="zone-mark"></div></div>
+        <div class="zonekey"><span><i style="background:var(--red-dim);border:1px solid var(--red)"></i>Decline default</span><span><i style="background:var(--raised);border:1px solid var(--line-strong)"></i>Judgement</span><span><i style="background:var(--green-dim);border:1px solid var(--green)"></i>Advance default</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- DECISION FORM -->
+<section class="screen" id="s-decision">
+  <span class="back" onclick="backFromForm()">&larr; Back</span>
+  <div class="head"><div><h1 id="decision-title">Decision</h1><p>Advance or decline, with a rationale for the record.</p></div></div>
+  <div id="decision-blocked" class="card hidden"><p class="small">This submission hasn't been through detailed screen yet.</p></div>
+  <div id="decision-body">
+    <div class="card"><h2>Scores recap</h2>
+      <table id="decision-scores"><thead><tr><th>Criterion</th><th class="r">Wt</th><th class="r">Score</th></tr></thead><tbody></tbody></table>
+      <div class="stat" style="margin-top:12px"><div class="v" id="decision-comp-v">&mdash;</div><div class="l" id="decision-comp-l"></div></div>
+    </div>
+    <div class="card">
+      <div class="field"><label>Rationale &mdash; mandatory</label><textarea id="decision-rationale" oninput="validateDecision()"></textarea></div>
+      <div class="row">
+        <button class="btn primary" onclick="submitDecision('ADVANCE')" id="decision-advance" disabled>Advance</button>
+        <button class="btn danger" onclick="submitDecision('DECLINE')" id="decision-decline" disabled>Decline</button>
+        <span class="small muted" id="decision-status"></span>
+      </div>
+      <p class="errbox" id="decision-error"></p>
+    </div>
+  </div>
+</section>
+
+</div>
+</div>
+
+<script>
+const API = window.location.origin;
+const state = { token: localStorage.getItem("bidso_labs_token") || "", submissions: [], current: null, currentDetail: null };
+
+/* ---------- auth ---------- */
+async function login() {
+  const email = document.getElementById("email").value;
+  const password = document.getElementById("password").value;
+  const res = await fetch(API + "/auth/login", {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({email, password})
+  });
+  if (!res.ok) { document.getElementById("loginError").textContent = "Login failed"; return; }
+  const data = await res.json();
+  state.token = data.access_token;
+  localStorage.setItem("bidso_labs_token", state.token);
+  enterApp();
+}
+
+function logout() {
+  state.token = "";
+  localStorage.removeItem("bidso_labs_token");
+  document.getElementById("app").classList.remove("on");
+  document.getElementById("loginScreen").classList.remove("hidden");
+}
+
+function toggleForgot() {
+  document.getElementById("forgotForm").classList.toggle("hidden");
+}
+
+async function forgotPassword() {
+  const email = document.getElementById("forgotEmail").value;
+  const msg = document.getElementById("forgotMsg");
+  msg.textContent = "Sending...";
+  const res = await fetch(API + "/auth/forgot-password", {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({email})
+  });
+  const data = await res.json();
+  msg.textContent = data.message || "If that email has an account, a reset link has been sent.";
+}
+
+async function api(path, opts) {
+  opts = opts || {};
+  opts.headers = Object.assign({}, opts.headers, { Authorization: "Bearer " + state.token });
+  const res = await fetch(API + path, opts);
+  if (res.status === 401 || res.status === 403) { logout(); throw new Error("Not authorized"); }
+  return res;
+}
+
+async function enterApp() {
+  document.getElementById("loginScreen").classList.add("hidden");
+  document.getElementById("app").classList.add("on");
+  const me = await api("/auth/me");
+  if (me.ok) { const d = await me.json(); document.getElementById("whoami").textContent = d.email + " (" + d.role + ")"; }
+  await loadSubmissions();
+  showScreen("queue");
+}
+
+if (state.token) { enterApp(); } else {
+  const stopgapActive = document.getElementById("password").value.length > 0;
+  if (stopgapActive) document.getElementById("stopgapNote").classList.remove("hidden");
+}
+
+/* ---------- screen switching ---------- */
+function showScreen(id) {
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("on"));
+  document.getElementById("s-" + id).classList.add("on");
+  document.querySelectorAll(".nav button").forEach(b => b.classList.remove("on"));
+  const navBtn = document.querySelector('.nav button[data-s="' + (id.startsWith("list-") ? id : id) + '"]');
+  if (navBtn) navBtn.classList.add("on");
+  document.getElementById("crumb").innerHTML = "<b>" + id.replace("list-", "").replace(/^\w/, c => c.toUpperCase()) + "</b>";
+}
+
+function showList(kind) { showScreen("list-" + kind); }
+
+function backFromForm() { showScreen("queue"); loadSubmissions(); }
+
+/* ---------- queue + lists ---------- */
+const CLOSED_OR_LATER = ["FIRST_SCREEN_GO", "FIRST_SCREEN_DECLINE", "DETAILED_SCREEN_SCORED", "DECISION_ADVANCE", "DECISION_DECLINE"];
+
+async function loadSubmissions() {
+  const res = await api("/admin/submissions");
+  state.submissions = await res.json();
+  renderQueue();
+  renderLists();
+}
+
+function statusTag(status) {
+  const cls = status.includes("DECLINE") || status === "REJECTED" ? "red" : status.includes("ADVANCE") || status === "APPROVED" ? "green" : "amber";
+  return '<span class="tag ' + cls + '">' + status + "</span>";
+}
+
+function renderQueue() {
+  document.getElementById("cnt-all").textContent = state.submissions.length;
+  document.getElementById("queueBody").innerHTML = state.submissions.map(s => `<tr class="link" onclick="openRecord('${s.id}')">
+    <td class="num">${s.reference_number || "—"}</td><td>${s.summary || "—"}</td><td>${s.track}</td>
+    <td>${statusTag(s.status)}</td><td>${new Date(s.created_at).toLocaleDateString()}</td>
+    <td class="r"><button class="btn small" onclick="event.stopPropagation();routeToNext('${s.id}')">Continue</button></td>
+  </tr>`).join("") || '<tr><td colspan="6" class="muted">No submissions yet.</td></tr>';
+}
+
+function renderLists() {
+  const first = state.submissions.filter(s => s.track === "DESIGNER" && !CLOSED_OR_LATER.includes(s.status));
+  const detailed = state.submissions.filter(s => s.status === "FIRST_SCREEN_GO");
+  const decision = state.submissions.filter(s => s.status === "DETAILED_SCREEN_SCORED");
+  document.getElementById("cnt-first").textContent = first.length;
+  document.getElementById("cnt-detailed").textContent = detailed.length;
+  document.getElementById("cnt-decision").textContent = decision.length;
+
+  document.getElementById("listFirstBody").innerHTML = first.map(s => `<tr class="link" onclick="openFirstScreen('${s.id}')">
+    <td class="num">${s.reference_number || "—"}</td><td>${s.summary || "—"}</td><td>${new Date(s.created_at).toLocaleDateString()}</td>
+    <td class="r"><button class="btn small">Open</button></td></tr>`).join("") || '<tr><td colspan="4" class="muted">Nothing waiting.</td></tr>';
+
+  document.getElementById("listDetailedBody").innerHTML = detailed.map(s => `<tr class="link" onclick="openDetailedScreen('${s.id}')">
+    <td class="num">${s.reference_number || "—"}</td><td>${s.summary || "—"}</td><td><span class="tag green">Go</span></td>
+    <td class="r"><button class="btn small">Open</button></td></tr>`).join("") || '<tr><td colspan="4" class="muted">Nothing waiting.</td></tr>';
+
+  document.getElementById("listDecisionBody").innerHTML = decision.map(s => `<tr class="link" onclick="openDecision('${s.id}')">
+    <td class="num">${s.reference_number || "—"}</td><td>${s.summary || "—"}</td><td>&mdash;</td><td>&mdash;</td>
+    <td class="r"><button class="btn small">Open</button></td></tr>`).join("") || '<tr><td colspan="5" class="muted">Nothing waiting.</td></tr>';
+}
+
+function routeToNext(id) {
+  const s = state.submissions.find(x => x.id === id);
+  if (!s) return;
+  if (s.status === "DETAILED_SCREEN_SCORED") return openDecision(id);
+  if (s.status === "FIRST_SCREEN_GO") return openDetailedScreen(id);
+  if (CLOSED_OR_LATER.includes(s.status)) return openRecord(id);
+  return openFirstScreen(id);
+}
+
+async function fetchDetail(id) {
+  const res = await api("/admin/submissions/" + id);
+  state.current = id;
+  state.currentDetail = await res.json();
+  return state.currentDetail;
+}
+
+/* ---------- raw record ---------- */
+async function openRecord(id) {
+  const d = await fetchDetail(id);
+  document.getElementById("recordBody").innerHTML = `
+    <h1>${d.reference_number || d.track + " submission"}</h1>
+    <p class="muted">${statusTag(d.status)} &mdash; submitted ${new Date(d.created_at).toLocaleString()}</p>
+    <div class="card" style="margin-top:14px"><h2>Submitted data</h2><pre style="white-space:pre-wrap;font-size:12px">${JSON.stringify(d.detail, null, 2)}</pre></div>
+    <div class="card"><h2>First screen</h2><pre style="white-space:pre-wrap;font-size:12px">${JSON.stringify(d.first_screen, null, 2)}</pre></div>
+    <div class="card"><h2>Detailed screen</h2><pre style="white-space:pre-wrap;font-size:12px">${JSON.stringify(d.detailed_screen, null, 2)}</pre></div>
+    <div class="card"><h2>Decision</h2><pre style="white-space:pre-wrap;font-size:12px">${JSON.stringify(d.decision, null, 2)}</pre></div>
+    <div class="card"><h2>Audit trail</h2><pre style="white-space:pre-wrap;font-size:12px">${JSON.stringify(d.audit_events, null, 2)}</pre></div>`;
+  showScreen("record");
+}
+
+/* ---------- FIRST SCREEN ---------- */
+const KNOCKOUTS = [
+  ["eligibility", "Eligibility — age and residence, from the gate", [["CLEAR","Clear"],["KO","Knock out"]]],
+  ["warranty", "Warranty flags — encumbrance, joint creators, confidentiality", [["CLEAR","Clear"],["KO","Knock out"]]],
+  ["employer_letter", "Employer letter — knockout only on a flat \"no\"", [["NOT_TRIGGERED","Not triggered"],["YES","Yes"],["NOT_SURE","Not sure"],["NO","No → KO"]]],
+  ["prior_art", "Prior-art check", [["CLEAR","Clear"],["KO","Knock out"]]],
+  ["registry", "Registry verification of claimed registrations", [["NONE","None claimed"],["VERIFIED","Verified"],["MISMATCH","Mismatch"],["FALSE","False → KO"]]],
+];
+const GATES = [
+  ["category_fit", "Category fit", "Classify against the category buckets", [["CORE","Core"],["ADJACENT","Adjacent"],["OUTSIDE","Outside — gate"]]],
+  ["process_fit", "Manufacturing process fit", "Primary construction vs the process-capability list", [["CORE","Core"],["MIXED","Mixed"],["NON_CORE","Non-core — gate"]]],
+];
+const READS = [
+  ["differentiation", "Differentiation", "Marketplace search for comparable products", [["TOP","No comparable SKU"],["MID","Comparable, stated distinction"],["BOTTOM","Directly comparable, no distinction"]]],
+  ["market_size", "Market size", "Imputed size vs Bidso average", [["TOP","High"],["MID","Med"],["BOTTOM","Low"]]],
+  ["manufacturer_concentration", "Manufacturer concentration", "Registry count — fewer = higher tier", [["TOP","Rare"],["MID","Moderate"],["BOTTOM","Common"]]],
+  ["brand_fit", "Brand fit", "Roster match — never an account name", [["TOP","Direct match"],["MID","Adjacent"],["BOTTOM","No plausible match"]]],
+];
+
+const firstState = { knockouts: {}, gates: {}, reads: {} };
+
+async function openFirstScreen(id) {
+  const d = await fetchDetail(id);
+  document.getElementById("first-title").textContent = "First screen — " + (d.reference_number || id);
+  const intake = d.detail.stage1 || d.detail.designer_stage1 || Object.values(d.detail)[0] || {};
+  document.getElementById("first-submitted").innerHTML = `
+    <dt>Working title</dt><dd>${intake.working_title || "—"}</dd>
+    <dt>Finish stage</dt><dd>${intake.finish_stage || "—"}</dd>
+    <dt>Description</dt><dd>${intake.description || "—"}</dd>
+    <dt>Employer relates</dt><dd>${intake.employer_relates || "—"}</dd>
+    <dt>Made on employer time</dt><dd>${intake.made_on_employer_time || "—"}</dd>
+    <dt>Can get release letter</dt><dd>${intake.can_get_release_letter || "—"}</dd>`;
+
+  firstState.knockouts = {}; firstState.gates = {}; firstState.reads = {};
+
+  document.getElementById("knockouts").innerHTML = KNOCKOUTS.map(([key, label, opts]) => `
+    <div class="knock"><span>${label}</span><div class="res" id="knock-${key}">
+      ${opts.map(([v, l]) => `<button onclick="setKnock('${key}','${v}')" data-v="${v}">${l}</button>`).join("")}
+    </div></div>`).join("");
+
+  document.getElementById("gates").innerHTML = GATES.map(([key, title, act, opts]) => `
+    <div class="crit gate"><div class="crit-head"><h3>${title}</h3><span class="small muted">${act}</span></div>
+      <div class="tiers" id="gate-${key}">
+        ${opts.map(([v, l]) => `<div class="tier" onclick="setGate('${key}','${v}')" data-v="${v}"><b>${l}</b></div>`).join("")}
+      </div></div>`).join("");
+
+  document.getElementById("reads").innerHTML = READS.map(([key, title, act, opts]) => `
+    <div class="crit research"><div class="crit-head"><h3>${title}</h3><span class="small muted">${act}</span></div>
+      <div class="tiers" id="read-${key}">
+        ${opts.map(([v, l]) => `<div class="tier" onclick="setRead('${key}','${v}')" data-v="${v}"><b>${l}</b></div>`).join("")}
+      </div>
+      <div class="evidence"><textarea placeholder="Evidence" oninput="setReadEvidence('${key}', this.value)"></textarea></div>
+    </div>`).join("");
+
+  document.getElementById("first-error").textContent = "";
+  document.getElementById("first-status").textContent = "";
+  updateFirstVerdict();
+  showScreen("first");
+}
+
+function setKnock(key, v) {
+  firstState.knockouts[key] = v;
+  document.querySelectorAll('#knock-' + key + ' button').forEach(b => {
+    b.classList.toggle("on", b.dataset.v === v);
+    b.classList.toggle("bad", b.dataset.v === v && (v === "KO" || v === "NO" || v === "FALSE"));
+    b.classList.toggle("flag", b.dataset.v === v && v === "NOT_SURE");
+  });
+  updateFirstVerdict();
+}
+function setGate(key, v) {
+  firstState.gates[key] = v;
+  document.querySelectorAll('#gate-' + key + ' .tier').forEach(t => {
+    t.classList.toggle("on", t.dataset.v === v);
+    t.classList.toggle("bad", t.dataset.v === v && (v === "OUTSIDE" || v === "NON_CORE"));
+  });
+  updateFirstVerdict();
+}
+function setRead(key, v) {
+  firstState.reads[key] = Object.assign({}, firstState.reads[key], { tier: v });
+  document.querySelectorAll('#read-' + key + ' .tier').forEach(t => t.classList.toggle("on", t.dataset.v === v));
+  updateFirstVerdict();
+}
+function setReadEvidence(key, val) {
+  firstState.reads[key] = Object.assign({}, firstState.reads[key], { evidence: val });
+  updateFirstVerdict();
+}
+
+function computeRulePreview() {
+  const req = ["differentiation", "market_size", "manufacturer_concentration", "brand_fit"];
+  for (const k of req) { if (!firstState.reads[k] || !firstState.reads[k].tier) return null; }
+  const diffOk = firstState.reads.differentiation.tier !== "BOTTOM";
+  const bottomCount = ["market_size", "manufacturer_concentration", "brand_fit"].filter(k => firstState.reads[k].tier === "BOTTOM").length;
+  return (diffOk && bottomCount < 2) ? "GO" : "NO_GO";
+}
+
+function allReadsComplete() {
+  const req = ["differentiation", "market_size", "manufacturer_concentration", "brand_fit"];
+  return req.every(k => firstState.reads[k] && firstState.reads[k].tier && firstState.reads[k].evidence && firstState.reads[k].evidence.trim().length > 0);
+}
+function allKnockoutsSet() { return KNOCKOUTS.every(([key]) => firstState.knockouts[key]); }
+function allGatesSet() { return GATES.every(([key]) => firstState.gates[key]); }
+
+function updateFirstVerdict() {
+  const preview = document.getElementById("first-rule-preview");
+  const rule = computeRulePreview();
+  if (rule === null) { preview.textContent = "Fill in all four reads"; preview.className = "tag"; }
+  else { preview.textContent = "Rule says: " + rule; preview.className = "tag " + (rule === "GO" ? "green" : "red"); }
+  document.getElementById("first-submit").disabled = !(allKnockoutsSet() && allGatesSet() && allReadsComplete());
+}
+
+async function submitFirstScreen() {
+  document.getElementById("first-error").textContent = "";
+  const payload = { knockouts: firstState.knockouts, gates: firstState.gates, reads: firstState.reads };
+  const res = await api("/internal/submissions/" + state.current + "/first-screen", {
+    method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  if (!res.ok) { document.getElementById("first-error").textContent = data.detail || "Submit failed."; return; }
+  document.getElementById("first-status").textContent = "Recorded: " + data.rule_result;
+  await loadSubmissions();
+}
+
+/* ---------- DETAILED SCREEN ---------- */
+const SCORE_WEIGHTS = { market_size: 17, differentiation: 19, manufacturer_concentration: 11, brand_fit: 11, process_fit: 11, technical_feasibility: 13, margin_potential: 18 };
+const SCORE_LABELS = { market_size: "Market size", differentiation: "Differentiation", manufacturer_concentration: "Manufacturer concentration", brand_fit: "Brand fit", process_fit: "Process fit", technical_feasibility: "Technical feasibility", margin_potential: "Margin potential" };
+const ZONE_LO = 2.9, ZONE_HI = 3.8;
+const detailedScores = {};
+
+async function openDetailedScreen(id) {
+  const d = await fetchDetail(id);
+  document.getElementById("detailed-title").textContent = "Detailed screen — " + (d.reference_number || id);
+  const blocked = d.status !== "FIRST_SCREEN_GO";
+  document.getElementById("detailed-blocked").classList.toggle("hidden", !blocked);
+  document.getElementById("detailed-body").classList.toggle("hidden", blocked);
+  if (blocked) { showScreen("detailed"); return; }
+
+  document.getElementById("in-bom").value = "";
+  document.getElementById("in-price").value = "";
+  document.getElementById("detailed-rationale").value = "";
+  Object.keys(SCORE_WEIGHTS).forEach(k => detailedScores[k] = null);
+
+  document.getElementById("scoreRows").innerHTML = Object.keys(SCORE_WEIGHTS).map(key => `
+    <div class="score"><span>${SCORE_LABELS[key]}</span><span class="w num">${SCORE_WEIGHTS[key]}</span>
+      <div class="pips" id="pip-${key}">${[1,2,3,4,5].map(n => `<button onclick="setScore('${key}',${n})" data-v="${n}">${n}</button>`).join("")}</div>
+    </div>`).join("");
+
+  document.getElementById("detailed-error").textContent = "";
+  document.getElementById("detailed-status").textContent = "";
+  recomputeDetailed();
+  showScreen("detailed");
+}
+
+function setScore(key, v) {
+  detailedScores[key] = v;
+  document.querySelectorAll('#pip-' + key + ' button').forEach(b => b.classList.toggle("on", Number(b.dataset.v) === v));
+  recomputeDetailed();
+}
+
+function markupBand(pct) { return pct < 18 ? "LOW" : pct < 43 ? "MED" : "HIGH"; }
+
+function recomputeDetailed() {
+  const bom = parseFloat(document.getElementById("in-bom").value);
+  const price = parseFloat(document.getElementById("in-price").value);
+  if (bom > 0 && price >= 0) {
+    const pct = ((price - bom) / bom) * 100;
+    document.getElementById("markup-v").textContent = pct.toFixed(1) + "%";
+    document.getElementById("markup-l").textContent = "Markup on BoM cost · " + markupBand(pct) + " band (18 / 43)";
+  } else {
+    document.getElementById("markup-v").textContent = "—";
+    document.getElementById("markup-l").textContent = "Markup on BoM cost";
+  }
+
+  const allScored = Object.values(detailedScores).every(v => v !== null && v !== undefined);
+  let composite = null;
+  if (allScored) {
+    const total = Object.keys(SCORE_WEIGHTS).reduce((sum, k) => sum + SCORE_WEIGHTS[k] * detailedScores[k], 0);
+    composite = total / 100;
+    document.getElementById("comp-v").textContent = composite.toFixed(2);
+    const zone = composite < ZONE_LO ? "Decline default" : composite > ZONE_HI ? "Advance default" : "Judgement";
+    document.getElementById("comp-l").textContent = "Engineering-drawing band · " + zone + " zone (" + ZONE_LO + "–" + ZONE_HI + ")";
+    const pct = ((composite - 1) / 4) * 100;
+    document.getElementById("zone-mark").style.left = Math.max(0, Math.min(100, pct)) + "%";
+    document.getElementById("zone-mark").setAttribute("data-v", composite.toFixed(2));
+    const loPct = ((ZONE_LO - 1) / 4) * 100, hiPct = ((ZONE_HI - 1) / 4) * 100;
+    document.getElementById("zone-lo").style.width = loPct + "%";
+    document.getElementById("zone-mid").style.left = loPct + "%";
+    document.getElementById("zone-mid").style.width = (hiPct - loPct) + "%";
+    document.getElementById("zone-hi").style.left = hiPct + "%";
+    document.getElementById("zone-hi").style.width = (100 - hiPct) + "%";
+  } else {
+    document.getElementById("comp-v").textContent = "—";
+    document.getElementById("comp-l").textContent = "Engineering-drawing band";
+  }
+
+  const rationale = document.getElementById("detailed-rationale").value.trim();
+  document.getElementById("detailed-submit").disabled = !(bom > 0 && price >= 0 && allScored && rationale.length > 0);
+}
+
+async function submitDetailedScreen() {
+  document.getElementById("detailed-error").textContent = "";
+  const payload = {
+    bom_cost: parseFloat(document.getElementById("in-bom").value),
+    target_price: parseFloat(document.getElementById("in-price").value),
+    scores: detailedScores,
+    rationale: document.getElementById("detailed-rationale").value.trim(),
+  };
+  const res = await api("/internal/submissions/" + state.current + "/detailed-screen", {
+    method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  if (!res.ok) { document.getElementById("detailed-error").textContent = data.detail || "Submit failed."; return; }
+  document.getElementById("detailed-status").textContent = "Saved — composite " + data.composite.toFixed(2) + " (" + data.zone + ")";
+  await loadSubmissions();
+}
+
+/* ---------- DECISION ---------- */
+async function openDecision(id) {
+  const d = await fetchDetail(id);
+  document.getElementById("decision-title").textContent = "Decision — " + (d.reference_number || id);
+  const blocked = d.status !== "DETAILED_SCREEN_SCORED";
+  document.getElementById("decision-blocked").classList.toggle("hidden", !blocked);
+  document.getElementById("decision-body").classList.toggle("hidden", blocked);
+  if (blocked) { showScreen("decision"); return; }
+
+  const ds = d.detailed_screen;
+  const tbody = document.querySelector("#decision-scores tbody");
+  tbody.innerHTML = Object.keys(SCORE_WEIGHTS).map(k => `<tr><td>${SCORE_LABELS[k]}</td><td class="r num">${SCORE_WEIGHTS[k]}</td><td class="r num">${ds.scores[k]}</td></tr>`).join("");
+  const zone = ds.zone === "DECLINE_DEFAULT" ? "Decline default" : ds.zone === "ADVANCE_DEFAULT" ? "Advance default" : "Judgement";
+  document.getElementById("decision-comp-v").textContent = ds.composite.toFixed(2);
+  document.getElementById("decision-comp-l").textContent = zone + " zone · markup " + ds.markup_pct.toFixed(1) + "% (" + ds.markup_band + ") · " + ds.rationale;
+
+  document.getElementById("decision-rationale").value = "";
+  document.getElementById("decision-error").textContent = "";
+  document.getElementById("decision-status").textContent = "";
+  validateDecision();
+  showScreen("decision");
+}
+
+function validateDecision() {
+  const ok = document.getElementById("decision-rationale").value.trim().length > 0;
+  document.getElementById("decision-advance").disabled = !ok;
+  document.getElementById("decision-decline").disabled = !ok;
+}
+
+async function submitDecision(outcome) {
+  document.getElementById("decision-error").textContent = "";
+  const payload = { outcome, rationale: document.getElementById("decision-rationale").value.trim() };
+  const res = await api("/internal/submissions/" + state.current + "/decision", {
+    method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  if (!res.ok) { document.getElementById("decision-error").textContent = data.detail || "Submit failed."; return; }
+  document.getElementById("decision-status").textContent = "Recorded: " + data.outcome;
+  await loadSubmissions();
+}
+</script>
+</body>
+</html>
