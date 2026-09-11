@@ -120,3 +120,62 @@ class SubmissionStatusResponse(BaseModel):
     decision_due_by: str | None = None
     rejection_message: str | None = None
     stage_dates: dict[str, str]
+
+
+# --- Evaluation engine, Tier 0 (evaluation-engine-phased-plan.md) -----------
+
+
+class ReadInput(BaseModel):
+    tier: str = Field(pattern="^(TOP|MID|BOTTOM)$")
+    evidence: str = Field(min_length=1, max_length=2000)
+
+
+class KnockoutsInput(BaseModel):
+    eligibility: str = Field(pattern="^(CLEAR|KO)$")
+    warranty: str = Field(pattern="^(CLEAR|KO)$")
+    employer_letter: str = Field(pattern="^(NOT_TRIGGERED|YES|NOT_SURE|NO)$")
+    prior_art: str = Field(pattern="^(CLEAR|KO)$")
+    registry: str = Field(pattern="^(NONE|VERIFIED|MISMATCH|FALSE)$")
+
+
+class GatesInput(BaseModel):
+    category_fit: str = Field(pattern="^(CORE|ADJACENT|OUTSIDE)$")
+    process_fit: str = Field(pattern="^(CORE|MIXED|NON_CORE)$")
+
+
+class FirstScreenRequest(BaseModel):
+    knockouts: KnockoutsInput
+    gates: GatesInput
+    reads: dict[str, ReadInput]  # keys: differentiation, market_size, manufacturer_concentration, brand_fit
+
+
+class FirstScreenResponse(BaseModel):
+    submission_id: str
+    rule_result: str
+    status: str
+
+
+class DetailedScreenRequest(BaseModel):
+    bom_cost: float = Field(gt=0)
+    target_price: float = Field(gt=0)
+    scores: dict[str, int]  # 7 keys, 1-5 each — see evaluation_engine.SCORE_WEIGHTS
+
+
+class DetailedScreenResponse(BaseModel):
+    submission_id: str
+    markup_pct: float
+    markup_band: str
+    composite: float
+    zone: str
+    status: str
+
+
+class DecisionRequest(BaseModel):
+    outcome: str = Field(pattern="^(ADVANCE|DECLINE)$")
+    rationale: str = Field(min_length=1, max_length=4000)
+
+
+class DecisionResponse(BaseModel):
+    submission_id: str
+    outcome: str
+    status: str

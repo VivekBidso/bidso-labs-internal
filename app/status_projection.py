@@ -22,6 +22,15 @@ COARSE_STAGE = {
     "COMMERCIAL_REJECTED": "Decision",
     "APPROVED": "Decision",
     "REJECTED": "Decision",
+    # Evaluation engine, Tier 0 (evaluation-engine-phased-plan.md) — supersedes
+    # the checklist-based statuses above for the Designer track going forward;
+    # those are left in place rather than removed, in case a submission already
+    # in flight under the old model is still mid-pipeline.
+    "FIRST_SCREEN_GO": "Screening",
+    "FIRST_SCREEN_DECLINE": "Decision",
+    "DETAILED_SCREEN_SCORED": "In evaluation",
+    "DECISION_ADVANCE": "Decision",
+    "DECISION_DECLINE": "Decision",
 }
 
 

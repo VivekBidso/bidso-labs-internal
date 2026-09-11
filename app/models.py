@@ -5,6 +5,7 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     Enum,
+    Float,
     ForeignKey,
     Integer,
     String,
@@ -219,6 +220,88 @@ class DeclinedIPRegister(Base):
     submitter_info: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     declined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     decline_reason: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class ScreenAssessment(Base):
+    """First Screen — Tier 0 of the new evaluation engine (wireframe v3).
+
+    One row per submission's first screen. `knockouts`, `gates`, and `reads`
+    are stored as JSONB rather than their own tables — each is a small,
+    fixed-shape record (tier + evidence per item) that's only ever read back
+    whole, never queried into individually; a table per criterion would be
+    seven tables for no real benefit. `rule_result` is a real column because
+    it's the one field worth filtering/joining on later (e.g. a queue of
+    "first-screen GOs still waiting on detailed screen").
+    """
+
+    __tablename__ = "screen_assessments"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    submission_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("submissions.id"), nullable=False, unique=True
+    )
+    knockouts: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    gates: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    reads: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    rule_result: Mapped[str] = mapped_column(Enum("GO", "NO_GO", name="screen_rule_result"), nullable=False)
+    reviewer_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class DetailedScoreSheet(Base):
+    """Detailed Screen — Tier 0. One row per submission's scoring pass.
+
+    `scores` holds the 7 criteria (1-5 each); `composite`/`zone` are
+    server-computed from `scores` + the band's weights/thresholds, never
+    taken from the client — same reasoning as `dispatch_price_resolver`'s
+    "never sourced from a client-supplied value" pattern on the Playfield
+    side of this engagement.
+    """
+
+    __tablename__ = "detailed_score_sheets"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    submission_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("submissions.id"), nullable=False, unique=True
+    )
+    bom_cost: Mapped[float] = mapped_column(Float, nullable=False)
+    target_price: Mapped[float] = mapped_column(Float, nullable=False)
+    markup_pct: Mapped[float] = mapped_column(Float, nullable=False)
+    markup_band: Mapped[str] = mapped_column(
+        Enum("LOW", "MED", "HIGH", name="markup_band"), nullable=False
+    )
+    scores: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    composite: Mapped[float] = mapped_column(Float, nullable=False)
+    zone: Mapped[str] = mapped_column(
+        Enum("DECLINE_DEFAULT", "JUDGEMENT", "ADVANCE_DEFAULT", name="score_zone"), nullable=False
+    )
+    reviewer_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class EvaluationDecision(Base):
+    """Final Decision — Tier 0. Plain outcome only: no deal-shape
+    sub-selection and no notice template, both deliberately deferred to
+    Tier 2 (`evaluation-engine-phased-plan.md`) — recording the outcome is
+    enough to prove the pipeline; the communication layer is separate work.
+    """
+
+    __tablename__ = "evaluation_decisions"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    submission_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("submissions.id"), nullable=False, unique=True
+    )
+    outcome: Mapped[str] = mapped_column(Enum("ADVANCE", "DECLINE", name="evaluation_outcome"), nullable=False)
+    rationale: Mapped[str] = mapped_column(Text, nullable=False)
+    decided_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+    decided_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class DealShapeDecision(Base):

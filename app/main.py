@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.auth import create_access_token, get_current_user, require_role, verify_password
 from app.business_days import add_business_days
 from app.database import get_db
+from app.evaluation_routes import router as evaluation_router
 from app.models import AuditEvent, SLAClock, StageAttachment, Submission, SubmissionDetail, User
 from app.notifications import notify_sales_contact, send_acknowledgement_email
 from app.reference_number import next_reference_number
@@ -46,6 +47,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(evaluation_router)
 
 
 @app.get("/health")
