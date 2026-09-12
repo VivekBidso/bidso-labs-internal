@@ -290,6 +290,7 @@ def public_presign(payload: PublicPresignRequest, db: Session = Depends(get_db))
         submission_id=str(submission.id),
         stage=stage,
         filename=payload.filename,
+        content_type=payload.content_type,
     )
 
 

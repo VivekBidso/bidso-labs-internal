@@ -40,25 +40,39 @@ def _r2_client():
     )
 
 
-def presign_upload(*, track: str, submission_id: str, stage: str, filename: str, expires_in: int = 900) -> dict:
-    """Issue a presigned POST for a file scoped to {track}/{submission_id}/{stage}/{key}.
+def presign_upload(
+    *, track: str, submission_id: str, stage: str, filename: str,
+    content_type: str | None = None, expires_in: int = 900,
+) -> dict:
+    """Issue a presigned PUT URL for a file scoped to {track}/{submission_id}/{stage}/{key}.
 
     The caller (browser) uploads directly to object storage with this — the
     file never passes through this app server. Each key gets a random prefix
     so two files with the same name never collide or overwrite each other.
+
+    Uses a presigned PUT, not a presigned POST: confirmed live against R2 that
+    generate_presigned_post always fails there with
+    "501 NotImplemented: Presigned post requests are not yet implemented" —
+    R2's S3-compatible API never implemented POST Object, so no upload
+    through that method could ever have succeeded. PUT is fully supported.
+    Note this drops the server-enforced content-length-range condition that
+    a POST policy could carry; max_bytes is still returned here for the
+    frontend's own pre-upload size check.
     """
     safe_name = sanitize_filename(filename)
     key = f"{track}/{submission_id}/{stage}/{uuid.uuid4().hex}-{safe_name}"
     max_bytes = MAX_UPLOAD_BYTES.get(stage, 25 * 1024 * 1024)
 
     client = _r2_client()
-    presigned = client.generate_presigned_post(
-        Bucket=settings.r2_bucket_name,
-        Key=key,
-        Conditions=[["content-length-range", 0, max_bytes]],
+    params = {"Bucket": settings.r2_bucket_name, "Key": key}
+    if content_type:
+        params["ContentType"] = content_type
+    url = client.generate_presigned_url(
+        ClientMethod="put_object",
+        Params=params,
         ExpiresIn=expires_in,
     )
-    return {"key": key, "upload": presigned, "max_bytes": max_bytes}
+    return {"key": key, "upload_url": url, "content_type": content_type, "max_bytes": max_bytes}
 
 
 def head_object(key: str) -> dict | None:
